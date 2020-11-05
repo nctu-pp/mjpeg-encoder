@@ -21,20 +21,22 @@ add_executable(
         mjpeg_encoder
 
         # model
-        model/Color.h
-        model/Color.cpp
-        model/Size.h
-        model/Size.cpp
+        model/Model.h
+        model/Model.cpp
 
         # io
         io/RawVideoReader.h
         io/RawVideoReader.cpp
 
         # core
-        core/JPEGEncoder.h
-        core/JPEGEncoder.cpp
         core/AVIOutputStream.h
         core/AVIOutputStream.cpp
+
+        # MJPEG encoder
+        core/encoder/AbstractMJPEGEncoder.h
+        core/encoder/AbstractMJPEGEncoder.cpp
+        core/encoder/MJPEGEncoderSerialImpl.h
+        core/encoder/MJPEGEncoderSerialImpl.cpp
 
         # main
         main.cpp

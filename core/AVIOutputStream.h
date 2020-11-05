@@ -6,7 +6,7 @@
 #include <iostream>
 #include <fstream>
 
-#include "../model/Size.h"
+#include "../model/Model.h"
 
 #pragma once
 

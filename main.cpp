@@ -1,7 +1,8 @@
 #include <iostream>
 #include <getopt.h>
 
-#include "model/Size.h"
+#include "model/Model.h"
+#include "core/encoder/AbstractMJPEGEncoder.h"
 
 using namespace std;
 using namespace model;
@@ -15,16 +16,12 @@ void showHelp(char *const exeName) {
             << "\t-r --fps <fps>\tVideo FPS." << endl
             << "\t-o --output <path>\tOutput path." << endl
             << "\t-t --threads <number>\tUse number threads." << endl
+            << "\t-k --kind <serial|openmp|opencl>\tSelect implementation, default is serial." << endl
             << "\t-h --help\tShow usage." << endl;
 }
 
 int main(int argc, char *argv[]) {
-
-    string input;
-    Size size;
-    int fps = 0;
-    string output;
-    int numThreads = 0;
+    Arguments arguments;
 
     if (argc == 1) {
         showHelp(argv[0]);
@@ -39,25 +36,29 @@ int main(int argc, char *argv[]) {
                 {"fps",     required_argument, nullptr, 'r'},
                 {"output",  required_argument, nullptr, 'o'},
                 {"threads", optional_argument, nullptr, 't'},
+                {"kind",    optional_argument, nullptr, 'k'},
                 {"help",    no_argument,       nullptr, 'h'},
         };
         char opt;
         while ((opt = (char) getopt_long(argc, argv, "i:s:r:o:t::h?", long_options, nullptr)) != EOF) {
             switch (opt) {
                 case 'i':
-                    input = string(optarg);
+                    arguments.input = string(optarg);
                     break;
                 case 's':
-                    sscanf_s(optarg, "%dx%d", &(size.width), &(size.height));
+                    sscanf_s(optarg, "%dx%d", &(arguments.size.width), &(arguments.size.height));
                     break;
                 case 'r':
-                    fps = stoi(optarg);
+                    arguments.fps = stoi(optarg);
                     break;
                 case 'o':
-                    output = string(optarg);
+                    arguments.output = string(optarg);
                     break;
                 case 't':
-                    numThreads = stoi(optarg);
+                    arguments.numThreads = stoi(optarg);
+                    break;
+                case 'k':
+                    arguments.kind = model::parseImplKind(optarg);
                     break;
                 case '?':
                 default:
@@ -67,8 +68,10 @@ int main(int argc, char *argv[]) {
         }
     } while (false);
 
+    auto mjpegEncoder = core::encoder::AbstractMJPEGEncoder::getInstance(arguments);
 
-    // -i xxx.raw -s 854x480 -r 20 -o yyy.avi -t threadNumber
-
+    mjpegEncoder->start();
+    mjpegEncoder->finalize();
+    
     return 0;
 }

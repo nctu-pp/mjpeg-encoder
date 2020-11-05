@@ -8,8 +8,7 @@
 #include <string>
 #include <fstream>
 
-#include "../model/Color.h"
-#include "../model/Size.h"
+#include "../model/Model.h"
 
 using namespace std;
 using namespace model;
@@ -19,17 +18,20 @@ namespace io {
     public:
         explicit RawVideoReader(const string &filePath, const Size &size);
 
-        int readFrame(char *buffer, int numOfFrame = 1);
+        int readFrame(int seek, char *buffer, int numOfFrame = 1);
 
-        void seek(int newPosition);
+        size_t getTotalFrames() const;
 
-        int getCurrentPosition() const;
-
-        bool eof() const;
+        size_t getPerFrameSize() const;
 
     private:
         string _filePath;
         Size _size;
-        int _currentPosition;
+        size_t _cachedTotalFrames;
+        size_t _cachedPerFrameSize;
+
+        void openFile(ifstream& fs, const size_t& pos = 0);
+
+        void initCache();
     };
 }
