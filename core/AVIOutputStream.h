@@ -23,7 +23,7 @@ namespace core {
         AVIOutputStream *setFps(int fps);
 
         // remove this if avi container do not need this info
-        AVIOutputStream *setTotalFrames(int numOfFrames);
+        AVIOutputStream *setTotalFrames(size_t numOfFrames);
 
         void start();
 

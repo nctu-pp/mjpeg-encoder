@@ -13,21 +13,16 @@ io::RawVideoReader::RawVideoReader(const string &filePath, const Size &size) {
     initCache();
 }
 
-int io::RawVideoReader::readFrame(int seek, char *buffer, int numOfFrame) {
-    // return zero if eof
-    return 0;
-}
-
 size_t io::RawVideoReader::getTotalFrames() const {
-
     return _cachedTotalFrames;
 }
 
 size_t io::RawVideoReader::getPerFrameSize() const {
-    return 0;
+    return _cachedPerFrameSize;
 }
 
-void io::RawVideoReader::openFile(ifstream &fs, const size_t &pos) {
+void io::RawVideoReader::openFile(ifstream &fs, const size_t &pos) const {
+    fs.exceptions(std::ifstream::failbit | std::ifstream::badbit);
     fs.open(this->_filePath, ifstream::in | ifstream::binary);
     fs.seekg(pos, ios::beg);
 }
@@ -42,6 +37,22 @@ void io::RawVideoReader::initCache() {
 
     fs.close();
 
-    _cachedPerFrameSize = _size.width * _size.height * 4;
+    _cachedPerFrameSize = _size.width * _size.height * PIXEL_BYTES;
     _cachedTotalFrames = size / _cachedPerFrameSize;
+}
+
+int io::RawVideoReader::readFrame(char *buffer, int numOfFrame, int startAtFrame) {
+    ifstream fs;
+    openFile(fs, startAtFrame * _cachedPerFrameSize);
+
+    int frameRead = 0;
+    char *currentBufferAddr = buffer;
+    while (frameRead < numOfFrame && !fs.eof()) {
+        fs.read(currentBufferAddr, _cachedPerFrameSize);
+        currentBufferAddr += _cachedPerFrameSize;
+
+        frameRead++;
+    }
+
+    return frameRead;
 }

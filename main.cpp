@@ -1,4 +1,5 @@
 #include <iostream>
+#include <filesystem>
 #include <getopt.h>
 
 #include "model/Model.h"
@@ -15,13 +16,18 @@ void showHelp(char *const exeName) {
             << "\t-s --size <width>x<height>\tVideo resolution." << endl
             << "\t-r --fps <fps>\tVideo FPS." << endl
             << "\t-o --output <path>\tOutput path." << endl
+            << "\t-q --quality <number, [0-100]>\tJPEG quality." << endl
             << "\t-t --threads <number>\tUse number threads." << endl
             << "\t-k --kind <serial|openmp|opencl>\tSelect implementation, default is serial." << endl
+            << "\t-T --temp-dir <path>\tTemp dir, default is system temp dir." << endl
             << "\t-h --help\tShow usage." << endl;
 }
 
 int main(int argc, char *argv[]) {
-    Arguments arguments;
+    Arguments arguments{
+        .tmpDir = filesystem::temp_directory_path().string(),
+        .quality = 100,
+    };
 
     if (argc == 1) {
         showHelp(argv[0]);
@@ -31,16 +37,18 @@ int main(int argc, char *argv[]) {
     // parse argv options
     do {
         static struct option long_options[] = {
-                {"input",   required_argument, nullptr, 'i'},
-                {"size",    required_argument, nullptr, 's'},
-                {"fps",     required_argument, nullptr, 'r'},
-                {"output",  required_argument, nullptr, 'o'},
-                {"threads", optional_argument, nullptr, 't'},
-                {"kind",    optional_argument, nullptr, 'k'},
-                {"help",    no_argument,       nullptr, 'h'},
+                {"input",    required_argument, nullptr, 'i'},
+                {"size",     required_argument, nullptr, 's'},
+                {"fps",      required_argument, nullptr, 'r'},
+                {"output",   required_argument, nullptr, 'o'},
+                {"quality",  optional_argument, nullptr, 'q'},
+                {"threads",  optional_argument, nullptr, 't'},
+                {"temp-dir", optional_argument, nullptr, 'T'},
+                {"kind",     optional_argument, nullptr, 'k'},
+                {"help",     no_argument,       nullptr, 'h'},
         };
         char opt;
-        while ((opt = (char) getopt_long(argc, argv, "i:s:r:o:t::h?", long_options, nullptr)) != EOF) {
+        while ((opt = (char) getopt_long(argc, argv, "i:s:r:o:t:T:q:h?", long_options, nullptr)) != EOF) {
             switch (opt) {
                 case 'i':
                     arguments.input = string(optarg);
@@ -57,6 +65,12 @@ int main(int argc, char *argv[]) {
                 case 't':
                     arguments.numThreads = stoi(optarg);
                     break;
+                case 'q':
+                    arguments.quality = stoi(optarg);
+                    break;
+                case 'T':
+                    arguments.tmpDir = string(optarg);
+                    break;
                 case 'k':
                     arguments.kind = model::parseImplKind(optarg);
                     break;
@@ -72,6 +86,6 @@ int main(int argc, char *argv[]) {
 
     mjpegEncoder->start();
     mjpegEncoder->finalize();
-    
+
     return 0;
 }

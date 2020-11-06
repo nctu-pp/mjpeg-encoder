@@ -5,7 +5,7 @@
 #pragma once
 
 #include "AbstractMJPEGEncoder.h"
-#include "../../io/RawVideoReader.h"
+#include <cassert>
 
 namespace core::encoder {
     class MJPEGEncoderSerialImpl : public AbstractMJPEGEncoder {
@@ -13,8 +13,16 @@ namespace core::encoder {
         explicit MJPEGEncoderSerialImpl(const Arguments &arguments);
 
     protected:
+        bool _writeIntermediateResult = true;
+        color::YCbCr444* _yuvFrameBuffer = nullptr;
+
         void start() override;
 
         void finalize() override;
+
+        void encodeJpeg(
+                color::RGBA *paddedData, int length, int quality,
+                vector<char>& output
+        ) const override;
     };
 }

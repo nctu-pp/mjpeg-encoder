@@ -11,21 +11,20 @@ core::AVIOutputStream::AVIOutputStream(const string &path) {
 }
 
 core::AVIOutputStream *core::AVIOutputStream::setSize(const Size &size) {
-    return nullptr;
+    return this;
 }
 
 core::AVIOutputStream *core::AVIOutputStream::setFps(int fps) {
-    return nullptr;
+    return this;
 }
 
-core::AVIOutputStream *core::AVIOutputStream::setTotalFrames(int numOfFrames) {
-    return nullptr;
+core::AVIOutputStream *core::AVIOutputStream::setTotalFrames(size_t numOfFrames) {
+    return this;
 }
 
 void core::AVIOutputStream::start() {
     _started = true;
 }
-
 
 void core::AVIOutputStream::writeFrame(char *data, int len) {
 
