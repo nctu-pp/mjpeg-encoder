@@ -31,8 +31,8 @@ namespace core::encoder {
 
         virtual void encodeJpeg(
                 color::RGBA *paddedData, int length, int quality,
-                vector<char>& output
-        ) const = 0;
+                vector<char> &output
+        ) = 0;
 
         void calcPaddingSize();
 

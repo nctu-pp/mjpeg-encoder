@@ -96,7 +96,6 @@ void AbstractMJPEGEncoder::doPadding(
 
 void AbstractMJPEGEncoder::writeBuffer(const string &path, char *buffer, size_t len, bool append) {
     ofstream fs;
-    fs.exceptions(std::ifstream::failbit | std::ifstream::badbit);
     auto flag = std::ofstream::out | std::ofstream::binary;
     if (append) {
         flag |= std::ofstream::app;
@@ -104,8 +103,8 @@ void AbstractMJPEGEncoder::writeBuffer(const string &path, char *buffer, size_t 
         flag |= std::ofstream::trunc;
     }
     fs.open(path, flag);
-    fs.write(buffer, len);
 
+    fs.write(buffer, len);
     fs.close();
 }
 
@@ -116,16 +115,16 @@ void AbstractMJPEGEncoder::transformColorSpace(
     float b[frameSize.width];
     float g[frameSize.width];
     float r[frameSize.width];
-    char *__restrict yChannelBase = yuv444Buffer.getYChannel();
-    char *__restrict cbChannelBase = yuv444Buffer.getCbChannel();
-    char *__restrict crChannelBase = yuv444Buffer.getCrChannel();
+    auto *__restrict yChannelBase = yuv444Buffer.getYChannel();
+    auto *__restrict cbChannelBase = yuv444Buffer.getCbChannel();
+    auto *__restrict crChannelBase = yuv444Buffer.getCrChannel();
 
     for (auto row = 0; row < frameSize.height; row++) {
         auto offset = (frameSize.width * row);
         auto rgbaColorPtr = rgbaBuffer + offset;
-        char *__restrict yChannel = yChannelBase + offset;
-        char *__restrict cbChannel = cbChannelBase + offset;
-        char *__restrict crChannel = crChannelBase + offset;
+        auto *__restrict yChannel = yChannelBase + offset;
+        auto *__restrict cbChannel = cbChannelBase + offset;
+        auto *__restrict crChannel = crChannelBase + offset;
 
         for (auto col = 0; col < frameSize.width; col++) {
             auto colorPtr = rgbaColorPtr + col;

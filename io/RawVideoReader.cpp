@@ -41,10 +41,7 @@ void io::RawVideoReader::initCache() {
     _cachedTotalFrames = size / _cachedPerFrameSize;
 }
 
-int io::RawVideoReader::readFrame(char *buffer, int numOfFrame, int startAtFrame) {
-    ifstream fs;
-    openFile(fs, startAtFrame * _cachedPerFrameSize);
-
+int io::RawVideoReader::readFrame(ifstream &fs, char *buffer, int numOfFrame) const {
     int frameRead = 0;
     char *currentBufferAddr = buffer;
     while (frameRead < numOfFrame && !fs.eof()) {
@@ -55,4 +52,18 @@ int io::RawVideoReader::readFrame(char *buffer, int numOfFrame, int startAtFrame
     }
 
     return frameRead;
+}
+
+int io::RawVideoReader::readFrame(char *buffer, int numOfFrame, int startAtFrame) {
+    ifstream fs;
+    openFile(fs, startAtFrame * _cachedPerFrameSize);
+
+    return readFrame(fs, buffer, numOfFrame);
+}
+
+ifstream io::RawVideoReader::openFile() const {
+    ifstream fs;
+    openFile(fs, 0);
+
+    return fs;
 }

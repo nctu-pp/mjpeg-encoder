@@ -27,7 +27,7 @@ namespace core {
 
         void start();
 
-        void writeFrame(char *data, int len);
+        void writeFrame(const char *data, int len);
 
         void close();
 

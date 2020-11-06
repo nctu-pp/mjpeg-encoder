@@ -26,7 +26,7 @@ void core::AVIOutputStream::start() {
     _started = true;
 }
 
-void core::AVIOutputStream::writeFrame(char *data, int len) {
+void core::AVIOutputStream::writeFrame(const char *data, int len) {
 
 }
 

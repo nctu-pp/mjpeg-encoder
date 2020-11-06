@@ -14,7 +14,8 @@ namespace core::encoder {
 
     protected:
         bool _writeIntermediateResult = true;
-        color::YCbCr444* _yuvFrameBuffer = nullptr;
+        color::YCbCr444 *_yuvFrameBuffer = nullptr;
+        ofstream _yuvTmpData;
 
         void start() override;
 
@@ -22,7 +23,7 @@ namespace core::encoder {
 
         void encodeJpeg(
                 color::RGBA *paddedData, int length, int quality,
-                vector<char>& output
-        ) const override;
+                vector<char> &output
+        ) override;
     };
 }
