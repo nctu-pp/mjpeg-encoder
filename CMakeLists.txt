@@ -41,6 +41,8 @@ add_executable(
         core/encoder/AbstractMJPEGEncoder.cpp
         core/encoder/MJPEGEncoderSerialImpl.h
         core/encoder/MJPEGEncoderSerialImpl.cpp
+        # core/encoder/MJPEGEncoderOpenMPImpl.h
+        # core/encoder/MJPEGEncoderOpenMPImpl.cpp
 
         # main
         main.cpp

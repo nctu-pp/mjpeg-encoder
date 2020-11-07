@@ -1,20 +1,19 @@
 //
-// Created by wcl on 2020/11/05.
+// Created by wcl on 2020/11/07.
 //
 
 #pragma once
 
 #include "AbstractMJPEGEncoder.h"
 #include <cassert>
+#include <omp.h>
 
 namespace core::encoder {
-    class MJPEGEncoderSerialImpl : public AbstractMJPEGEncoder {
+    class MJPEGEncoderOpenMPImpl : public AbstractMJPEGEncoder {
     public:
-        explicit MJPEGEncoderSerialImpl(const Arguments &arguments);
+        explicit MJPEGEncoderOpenMPImpl(const Arguments &arguments);
 
     protected:
-        bool _writeIntermediateResult = true;
-        ofstream _yuvTmpData;
 
         void start() override;
 

@@ -4,6 +4,7 @@
 
 #include "AbstractMJPEGEncoder.h"
 #include "MJPEGEncoderSerialImpl.h"
+// #include "MJPEGEncoderOpenMPImpl.h"
 
 using namespace core::encoder;
 
@@ -17,6 +18,8 @@ shared_ptr<AbstractMJPEGEncoder> core::encoder::AbstractMJPEGEncoder::getInstanc
 ) {
     switch (arguments.kind) {
         case model::OpenMP:
+            // return shared_ptr<AbstractMJPEGEncoder>(new MJPEGEncoderOpenMPImpl(arguments));
+
         case model::OpenCL:
             return nullptr;
 

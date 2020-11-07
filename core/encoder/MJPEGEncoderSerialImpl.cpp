@@ -12,22 +12,27 @@ using namespace core::encoder;
 
 MJPEGEncoderSerialImpl::MJPEGEncoderSerialImpl(const Arguments &arguments)
         : AbstractMJPEGEncoder(arguments) {
-    _yuvTmpData.open(_arguments.tmpDir + "/yuv444.raw",
-                     std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
+    if (_writeIntermediateResult) {
+        _yuvTmpData.open(_arguments.tmpDir + "/yuv444.raw",
+                         std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
+    }
 }
 
 void MJPEGEncoderSerialImpl::encodeJpeg(
         color::RGBA *paddedData, int length,
         int quality,
-        vector<char> &output
+        vector<char> &output,
+        void **sharedData
 ) {
-    transformColorSpace(paddedData, *_yuvFrameBuffer, this->_cachedPaddingSize);
+    // TODO: move _yuvFrameBuffer to shared data
+    auto yuvFrameBuffer = static_cast<color::YCbCr444 *>(sharedData[0]);
+    transformColorSpace(paddedData, *yuvFrameBuffer, this->_cachedPaddingSize);
 
     // just for see intermediate result
     if (_writeIntermediateResult) {
-        _yuvTmpData.write((char *) _yuvFrameBuffer->getYChannel(), length);
-        _yuvTmpData.write((char *) _yuvFrameBuffer->getCbChannel(), length);
-        _yuvTmpData.write((char *) _yuvFrameBuffer->getCrChannel(), length);
+        _yuvTmpData.write((char *) yuvFrameBuffer->getYChannel(), length);
+        _yuvTmpData.write((char *) yuvFrameBuffer->getCbChannel(), length);
+        _yuvTmpData.write((char *) yuvFrameBuffer->getCrChannel(), length);
     }
 }
 
@@ -48,7 +53,7 @@ void MJPEGEncoderSerialImpl::start() {
             ->setSize(_arguments.size)
             ->setTotalFrames(videoReader.getTotalFrames());
 
-    _yuvFrameBuffer = new color::YCbCr444(this->_cachedPaddingSize);
+    color::YCbCr444 yuvFrameBuffer(this->_cachedPaddingSize);
 
     // share outputBuffer to reduce re-alloc
     vector<char> outputBuffer;
@@ -56,11 +61,17 @@ void MJPEGEncoderSerialImpl::start() {
     aviOutputStream.start();
 
     // HACK: create empty file
-    writeBuffer(_arguments.tmpDir + "/yuv444.raw", nullptr, 0);
+    if(_writeIntermediateResult) {
+        writeBuffer(_arguments.tmpDir + "/yuv444.raw", nullptr, 0);
+    }
 
-    auto inputFs = videoReader.openFile();
+    void *passData[] = {
+            &yuvFrameBuffer,
+            nullptr,
+    };
+
     for (size_t frameNo = 0; frameNo < totalFrames; frameNo++) {
-        int readFrameNo = videoReader.readFrame(inputFs, buffer, 1);
+        int readFrameNo = videoReader.readFrame(buffer, 1);
         doPadding(
                 buffer, _arguments.size,
                 paddedBuffer, this->_cachedPaddingSize
@@ -74,7 +85,8 @@ void MJPEGEncoderSerialImpl::start() {
         this->encodeJpeg(
                 paddedRgbaPtr, totalPixels,
                 _arguments.quality,
-                outputBuffer
+                outputBuffer,
+                passData
         );
 
         // TODO:
@@ -89,7 +101,6 @@ void MJPEGEncoderSerialImpl::start() {
 
         aviOutputStream.writeFrame(outputBuffer.data(), outputBuffer.size());
     }
-    inputFs.close();
     aviOutputStream.close();
 
     delete[] buffer;
@@ -97,7 +108,7 @@ void MJPEGEncoderSerialImpl::start() {
 }
 
 void MJPEGEncoderSerialImpl::finalize() {
-    delete _yuvFrameBuffer;
-    _yuvFrameBuffer = nullptr;
-    _yuvTmpData.close();
+    if (_writeIntermediateResult) {
+        _yuvTmpData.close();
+    }
 }

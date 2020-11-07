@@ -31,8 +31,20 @@ namespace core::encoder {
 
         virtual void encodeJpeg(
                 color::RGBA *paddedData, int length, int quality,
-                vector<char> &output
+                vector<char> &output,
+                void **sharedData
         ) = 0;
+
+        inline void encodeJpeg(
+                color::RGBA *paddedData, int length, int quality,
+                vector<char> &output
+        ) {
+            return encodeJpeg(
+                    paddedData, length, quality,
+                    output,
+                    nullptr
+            );
+        }
 
         void calcPaddingSize();
 
@@ -44,7 +56,7 @@ namespace core::encoder {
         Size getPaddingSize() const;
 
         Arguments _arguments;
-        Size _cachedPaddingSize;
+        Size _cachedPaddingSize{0, 0};
 
         static void doPadding(
                 char *__restrict originalBuffer, const Size &originalSize,

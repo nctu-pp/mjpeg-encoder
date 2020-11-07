@@ -18,25 +18,24 @@ namespace io {
     public:
         explicit RawVideoReader(const string &filePath, const Size &size);
 
-        int readFrame(ifstream& fs, char *buffer, int numOfFrame = 1) const;
+        ~RawVideoReader();
 
-        int readFrame(char *buffer, int numOfFrame = 1, int startAtFrame = 0);
+        int readFrame(char *buffer, int numOfFrame = 1);
+
+        int readFrame(int startAtFrame, char *buffer, int numOfFrame = 1);
 
         size_t getTotalFrames() const;
 
         size_t getPerFrameSize() const;
 
-        ifstream openFile() const;
-
         static const size_t PIXEL_BYTES = 4;
     private:
+        ifstream _fs;
         string _filePath;
         Size _size{0, 0};
         size_t _cachedTotalFrames = 0;
         size_t _cachedPerFrameSize = 0;
 
-        void openFile(ifstream &fs, const size_t &pos = 0) const;
-
-        void initCache();
+        void initFileStream();
     };
 }
