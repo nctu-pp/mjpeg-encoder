@@ -158,3 +158,68 @@ void AbstractMJPEGEncoder::transformColorSpace(
         }
     }
 }
+
+void AbstractMJPEGEncoder::DCT(
+        float block[8*8],
+        uint8_t stride
+) const {
+    const auto SqrtHalfSqrt = 1.306562965f; //    sqrt((2 + sqrt(2)) / 2) = cos(pi * 1 / 8) * sqrt(2)
+    const auto InvSqrt      = 0.707106781f; // 1 / sqrt(2)                = cos(pi * 2 / 8)
+    const auto HalfSqrtSqrt = 0.382683432f; //     sqrt(2 - sqrt(2)) / 2  = cos(pi * 3 / 8)
+    const auto InvSqrtSqrt  = 0.541196100f; // 1 / sqrt(2 - sqrt(2))      = cos(pi * 3 / 8) * sqrt(2)
+
+    // modify in-place
+    auto& block0 = block[0         ];
+    auto& block1 = block[1 * stride];
+    auto& block2 = block[2 * stride];
+    auto& block3 = block[3 * stride];
+    auto& block4 = block[4 * stride];
+    auto& block5 = block[5 * stride];
+    auto& block6 = block[6 * stride];
+    auto& block7 = block[7 * stride];
+
+    // based on https://dev.w3.org/Amaya/libjpeg/jfdctflt.c , the original variable names can be found in my comments
+    auto add07 = block0 + block7; auto sub07 = block0 - block7; // tmp0, tmp7
+    auto add16 = block1 + block6; auto sub16 = block1 - block6; // tmp1, tmp6
+    auto add25 = block2 + block5; auto sub25 = block2 - block5; // tmp2, tmp5
+    auto add34 = block3 + block4; auto sub34 = block3 - block4; // tmp3, tmp4
+
+    auto add0347 = add07 + add34; auto sub07_34 = add07 - add34; // tmp10, tmp13 ("even part" / "phase 2")
+    auto add1256 = add16 + add25; auto sub16_25 = add16 - add25; // tmp11, tmp12
+
+    block0 = add0347 + add1256; block4 = add0347 - add1256; // "phase 3"
+
+    auto z1 = (sub16_25 + sub07_34) * InvSqrt; // all temporary z-variables kept their original names
+    block2 = sub07_34 + z1; block6 = sub07_34 - z1; // "phase 5"
+
+    auto sub23_45 = sub25 + sub34; // tmp10 ("odd part" / "phase 2")
+    auto sub12_56 = sub16 + sub25; // tmp11
+    auto sub01_67 = sub16 + sub07; // tmp12
+
+    auto z5 = (sub23_45 - sub01_67) * HalfSqrtSqrt;
+    auto z2 = sub23_45 * InvSqrtSqrt  + z5;
+    auto z3 = sub12_56 * InvSqrt;
+    auto z4 = sub01_67 * SqrtHalfSqrt + z5;
+    auto z6 = sub07 + z3; // z11 ("phase 5")
+    auto z7 = sub07 - z3; // z13
+    block1 = z6 + z4; block7 = z6 - z4; // "phase 6"
+    block5 = z7 + z2; block3 = z7 - z2;
+}
+
+void AbstractMJPEGEncoder::generateHuffmanTable(
+        const uint8_t numCodes[16],
+        const uint8_t* values,
+        BitCode result[256]
+) const {
+  // process all bitsizes 1 thru 16, no JPEG Huffman code is allowed to exceed 16 bits
+  auto huffmanCode = 0;
+  for (auto numBits = 1; numBits <= 16; numBits++)
+  {
+    // ... and each code of these bitsizes
+    for (auto i = 0; i < numCodes[numBits - 1]; i++) // note: numCodes array starts at zero, but smallest bitsize is 1
+      result[*values++] = BitCode(huffmanCode++, numBits);
+
+    // next Huffman code needs to be one bit wider
+    huffmanCode <<= 1;
+  }
+}
