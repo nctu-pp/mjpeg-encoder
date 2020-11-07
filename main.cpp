@@ -25,8 +25,8 @@ void showHelp(char *const exeName) {
 
 int main(int argc, char *argv[]) {
     Arguments arguments{
-        .tmpDir = filesystem::temp_directory_path().string(),
-        .quality = 100,
+            .tmpDir = filesystem::temp_directory_path().string(),
+            .quality = 100,
     };
 
     if (argc == 1) {
@@ -54,7 +54,8 @@ int main(int argc, char *argv[]) {
                     arguments.input = string(optarg);
                     break;
                 case 's':
-                    scanf(optarg, "%dx%d", &(arguments.size.width), &(arguments.size.height));
+                    sscanf(optarg, // NOLINT(cert-err34-c)
+                           "%dx%d", &(arguments.size.width), &(arguments.size.height));
                     break;
                 case 'r':
                     arguments.fps = stoi(optarg);
