@@ -10,6 +10,10 @@ find_package(OpenMP REQUIRED)
 
 set(COMMON_COMPILE_FLAGS "-mavx -mfma -ffast-math -m64")
 
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    set(COMMON_COMPILE_FLAGS "${COMMON_COMPILE_FLAGS} -Rpass=loop-vectorize -Rpass-missed=loop-vectorize -Rpass-analysis=loop-vectorize")
+endif ()
+
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_COMPILE_FLAGS} ${OpenMP_C_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_COMPILE_FLAGS} ${OpenMP_CXX_FLAGS}")
 

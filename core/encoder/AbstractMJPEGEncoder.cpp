@@ -51,23 +51,27 @@ void AbstractMJPEGEncoder::doPadding(
         char *__restrict originalBuffer, const Size &originalSize,
         char *__restrict targetBuffer, const Size &targetSize
 ) {
-    auto originalRowStep = originalSize.width * io::RawVideoReader::PIXEL_BYTES;
-    auto targetRowStep = targetSize.width * io::RawVideoReader::PIXEL_BYTES;
+    const auto originalRowStep = originalSize.width * io::RawVideoReader::PIXEL_BYTES;
+    const auto targetRowStep = targetSize.width * io::RawVideoReader::PIXEL_BYTES;
+    const auto requireColPaddingCnt = targetSize.width - originalSize.width;
+    const auto requireRowPaddingCnt = targetSize.height - originalSize.height;
+    const auto origTotalRows = originalSize.height;
+    const auto origTotalCols = originalSize.width;
+    const auto padTotalRows = targetSize.height;
+    const auto padTotalCols = targetSize.width;
 
-    for (auto row = 0; row < originalSize.height; row++) {
+    for (auto row = 0; row < origTotalRows; row++) {
         char *__restrict originalPtr = originalBuffer + (row * originalRowStep);
         char *__restrict targetPtr = targetBuffer + (row * targetRowStep);
-        memcpy(targetPtr, originalPtr, originalRowStep);
+        memcpy(targetPtr, originalPtr, originalRowStep); // aaa
     }
 
-    auto requireColPaddingCnt = targetSize.width - originalSize.width;
-    auto requireRowPaddingCnt = targetSize.height - originalSize.height;
 
     // do column padding
     if (requireColPaddingCnt != 0) {
-        for (auto row = 0; row < originalSize.height; row++) {
+        for (auto row = 0; row < origTotalRows; row++) {
             char *__restrict refPixelPtr = targetBuffer + io::RawVideoReader::PIXEL_BYTES *
-                                                          (row * targetSize.width + (originalSize.width - 1));
+                                                          (row * padTotalCols + (origTotalCols - 1));
 
             char *__restrict targetPixelPtr = refPixelPtr + io::RawVideoReader::PIXEL_BYTES;
 
@@ -84,11 +88,11 @@ void AbstractMJPEGEncoder::doPadding(
     // do row padding
     if (requireRowPaddingCnt != 0) {
         auto refPixelPtr = targetBuffer +
-                           io::RawVideoReader::PIXEL_BYTES * ((originalSize.height - 1) * targetSize.width);
+                           io::RawVideoReader::PIXEL_BYTES * ((origTotalRows - 1) * padTotalCols);
 
-        for (auto row = originalSize.height; row < targetSize.height; row++) {
+        for (auto row = origTotalRows; row < padTotalRows; row++) {
 
-            char *__restrict targetPixelPtr = targetBuffer + io::RawVideoReader::PIXEL_BYTES * (row * targetSize.width);
+            char *__restrict targetPixelPtr = targetBuffer + io::RawVideoReader::PIXEL_BYTES * (row * padTotalCols);
             memcpy(targetPixelPtr, refPixelPtr, targetRowStep);
         }
     }
@@ -112,28 +116,31 @@ void AbstractMJPEGEncoder::transformColorSpace(
         color::RGBA *__restrict rgbaBuffer, color::YCbCr444 &yuv444Buffer,
         const Size &frameSize
 ) const {
-    float b[frameSize.width];
-    float g[frameSize.width];
-    float r[frameSize.width];
+    const auto totalRows = frameSize.height;
+    const auto totalCols = frameSize.width;
+
+    float b[totalCols];
+    float g[totalCols];
+    float r[totalCols];
     auto *__restrict yChannelBase = yuv444Buffer.getYChannel();
     auto *__restrict cbChannelBase = yuv444Buffer.getCbChannel();
     auto *__restrict crChannelBase = yuv444Buffer.getCrChannel();
 
-    for (auto row = 0; row < frameSize.height; row++) {
-        auto offset = (frameSize.width * row);
+    for (auto row = 0; row < totalRows; row++) {
+        auto offset = (totalCols * row);
         auto rgbaColorPtr = rgbaBuffer + offset;
         auto *__restrict yChannel = yChannelBase + offset;
         auto *__restrict cbChannel = cbChannelBase + offset;
         auto *__restrict crChannel = crChannelBase + offset;
 
-        for (auto col = 0; col < frameSize.width; col++) {
+        for (auto col = 0; col < totalCols; col++) {
             auto colorPtr = rgbaColorPtr + col;
             b[col] = colorPtr->color.b;
             g[col] = colorPtr->color.g;
             r[col] = colorPtr->color.r;
         }
 
-        for (auto col = 0; col < frameSize.width; col++) {
+        for (auto col = 0; col < totalCols; col++) {
             auto yF = (int) (+0.299f * r[col] + 0.587f * g[col] + 0.114f * b[col]);
             auto cbF = (int) (-0.16874f * r[col] - 0.33126f * g[col] + 0.5f * b[col] + 128.f);
             auto crF = (int) (+0.5f * r[col] - 0.41869f * g[col] - 0.08131f * b[col] + 128.f);
