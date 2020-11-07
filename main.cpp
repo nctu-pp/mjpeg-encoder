@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
                     arguments.input = string(optarg);
                     break;
                 case 's':
-                    sscanf_s(optarg, "%dx%d", &(arguments.size.width), &(arguments.size.height));
+                    scanf(optarg, "%dx%d", &(arguments.size.width), &(arguments.size.height));
                     break;
                 case 'r':
                     arguments.fps = stoi(optarg);
