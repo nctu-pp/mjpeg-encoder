@@ -143,6 +143,22 @@ namespace core::encoder {
         ) const;
 
         const int16_t CodeWordLimit = 2048; // +/-2^11, maximum value after DCT
+
+        int16_t encodeBlock(
+                vector<char>& output,
+                float block[8][8],
+                const float scaled[8*8],
+                int16_t lastDC,
+                const BitCode huffmanDC[256],
+                const BitCode huffmanAC[256], 
+                const BitCode* codewords
+        );
+
+        void addMarker(
+                vector<char>& output,
+                uint8_t id,
+                uint16_t length
+        );
     };
 }
 

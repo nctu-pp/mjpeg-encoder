@@ -211,15 +211,101 @@ void AbstractMJPEGEncoder::generateHuffmanTable(
         const uint8_t* values,
         BitCode result[256]
 ) const {
-  // process all bitsizes 1 thru 16, no JPEG Huffman code is allowed to exceed 16 bits
-  auto huffmanCode = 0;
-  for (auto numBits = 1; numBits <= 16; numBits++)
-  {
+    // process all bitsizes 1 thru 16, no JPEG Huffman code is allowed to exceed 16 bits
+    auto huffmanCode = 0;
+    for (auto numBits = 1; numBits <= 16; numBits++)
+    {
     // ... and each code of these bitsizes
-    for (auto i = 0; i < numCodes[numBits - 1]; i++) // note: numCodes array starts at zero, but smallest bitsize is 1
-      result[*values++] = BitCode(huffmanCode++, numBits);
+        for (auto i = 0; i < numCodes[numBits - 1]; i++) // note: numCodes array starts at zero, but smallest bitsize is 1
+            result[*values++] = BitCode(huffmanCode++, numBits);
 
-    // next Huffman code needs to be one bit wider
-    huffmanCode <<= 1;
-  }
+        // next Huffman code needs to be one bit wider
+        huffmanCode <<= 1;
+    }
+}
+
+int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8], const float scaled[8*8], int16_t lastDC,
+                    const BitCode huffmanDC[256], const BitCode huffmanAC[256], const BitCode* codewords)
+{
+    // "linearize" the 8x8 block, treat it as a flat array of 64 floats
+    auto block64 = (float*) block;
+
+    // DCT: rows
+    for (auto offset = 0; offset < 8; offset++)
+        DCT(block64 + offset*8, 1);
+    // DCT: columns
+    for (auto offset = 0; offset < 8; offset++)
+        DCT(block64 + offset*1, 8);
+
+    // scale
+    for (auto i = 0; i < 8*8; i++)
+        block64[i] *= scaled[i];
+
+    // encode DC (the first coefficient is the "average color" of the 8x8 block)
+    auto DC = int(block64[0] + (block64[0] >= 0 ? +0.5f : -0.5f)); // C++11's nearbyint() achieves a similar effect
+
+    // quantize and zigzag the other 63 coefficients
+    auto posNonZero = 0; // find last coefficient which is not zero (because trailing zeros are encoded differently)
+    int16_t quantized[8*8];
+    for (auto i = 1; i < 8*8; i++) // start at 1 because block64[0]=DC was already processed
+    {
+        auto value = block64[ZigZagInv[i]];
+        // round to nearest integer
+        quantized[i] = int(value + (value >= 0 ? +0.5f : -0.5f)); // C++11's nearbyint() achieves a similar effect
+        // remember offset of last non-zero coefficient
+        if (quantized[i] != 0)
+        posNonZero = i;
+    }
+
+    // same "average color" as previous block ?
+    auto diff = DC - lastDC;
+    if (diff == 0)
+    	output.push_back(huffmanDC[0x00].code);
+    else
+    {
+        auto bits = codewords[diff]; // nope, encode the difference to previous block's average color
+    	output.push_back(huffmanDC[bits.numBits].code);
+    	output.push_back(bits.code);
+    }
+
+    // encode ACs (quantized[1..63])
+    auto offset = 0; // upper 4 bits count the number of consecutive zeros
+    for (auto i = 1; i <= posNonZero; i++) // quantized[0] was already written, skip all trailing zeros, too
+    {
+        // zeros are encoded in a special way
+        while (quantized[i] == 0) // found another zero ?
+        {
+            offset    += 0x10; // add 1 to the upper 4 bits
+            // split into blocks of at most 16 consecutive zeros
+            if (offset > 0xF0) // remember, the counter is in the upper 4 bits, 0xF = 15
+            {
+                output.push_back(huffmanAC[0xF0].code);
+                offset = 0;
+            }
+            i++;
+        }
+
+        auto encoded = codewords[quantized[i]];
+        // combine number of zeros with the number of bits of the next non-zero value
+        output.push_back(huffmanAC[offset + encoded.numBits].code);
+        output.push_back(encoded.code);
+        offset = 0;
+    }
+
+    // send end-of-block code (0x00), only needed if there are trailing zeros
+    if (posNonZero < 8*8 - 1) // = 63
+        output.push_back(huffmanAC[0x00].code);
+
+    return DC;
+}
+
+void AbstractMJPEGEncoder::addMarker(
+        vector<char>& output,
+        uint8_t id,
+        uint16_t length
+) {
+    output.push_back(0xFF);
+    output.push_back(id);     // ID, always preceded by 0xFF
+    output.push_back(uint8_t(length >> 8)); // length of the block (big-endian, includes the 2 length bytes as well)
+    output.push_back(uint8_t(length & 0xFF));
 }
