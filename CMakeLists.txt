@@ -21,8 +21,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_COMPILE_FLAGS} ${OpenMP_CXX_FLA
 find_package(OpenCL)
 include_directories(${OPENCL_INCLUDE_DIR})
 
-set(CMAKE_BUILD_TYPE Debug)
-
 add_executable(
         mjpeg_encoder
 
