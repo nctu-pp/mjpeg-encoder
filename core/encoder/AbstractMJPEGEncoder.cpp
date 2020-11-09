@@ -260,12 +260,12 @@ int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8
     // same "average color" as previous block ?
     auto diff = DC - lastDC;
     if (diff == 0)
-    	output.push_back(huffmanDC[0x00].code);
+        writeBitCode(output, huffmanDC[0x00]);
     else
     {
         auto bits = codewords[diff]; // nope, encode the difference to previous block's average color
-    	output.push_back(huffmanDC[bits.numBits].code);
-    	output.push_back(bits.code);
+        writeBitCode(output, huffmanDC[bits.numBits]);
+        writeBitCode(output, bits);
     }
 
     // encode ACs (quantized[1..63])
@@ -279,7 +279,7 @@ int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8
             // split into blocks of at most 16 consecutive zeros
             if (offset > 0xF0) // remember, the counter is in the upper 4 bits, 0xF = 15
             {
-                output.push_back(huffmanAC[0xF0].code);
+                writeBitCode(output, huffmanAC[0xF0]);
                 offset = 0;
             }
             i++;
@@ -287,15 +287,14 @@ int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8
 
         auto encoded = codewords[quantized[i]];
         // combine number of zeros with the number of bits of the next non-zero value
-        output.push_back(huffmanAC[offset + encoded.numBits].code);
-        output.push_back(encoded.code);
+        writeBitCode(output, huffmanAC[offset + encoded.numBits]);
+        writeBitCode(output, encoded);
         offset = 0;
     }
 
     // send end-of-block code (0x00), only needed if there are trailing zeros
     if (posNonZero < 8*8 - 1) // = 63
-        output.push_back(huffmanAC[0x00].code);
-
+        writeBitCode(output, huffmanAC[0x00]);
     return DC;
 }
 
@@ -309,3 +308,20 @@ void AbstractMJPEGEncoder::addMarker(
     output.push_back(uint8_t(length >> 8)); // length of the block (big-endian, includes the 2 length bytes as well)
     output.push_back(uint8_t(length & 0xFF));
 }
+
+void AbstractMJPEGEncoder::writeBitCode(
+        vector<char>& output,
+        const BitCode& data
+) {
+    buffer.numBits += data.numBits;
+    buffer.data   <<= data.numBits;
+    buffer.data    |= data.code;
+
+    while(buffer.numBits >= 8) {
+        buffer.numBits -= 8;
+        auto oneByte = uint8_t(buffer.data >> buffer.numBits);
+        output.push_back(oneByte);
+        if (oneByte == 0xFF)
+            output.push_back(0);
+    }
+};

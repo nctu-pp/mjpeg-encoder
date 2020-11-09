@@ -67,8 +67,10 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
     // write info
     addMarker(output, 0xC0, 2+6+3*3);
     output.push_back(0x08);
-    output.push_back((this->_cachedPaddingSize.height >> 8) << (this->_cachedPaddingSize.height & 0xFF));
-    output.push_back((this->_cachedPaddingSize.width >> 8) << (this->_cachedPaddingSize.width & 0xFF));
+    output.push_back(this->_cachedPaddingSize.height >> 8);
+    output.push_back(this->_cachedPaddingSize.height & 0xFF);
+    output.push_back(this->_cachedPaddingSize.width >> 8);
+    output.push_back(this->_cachedPaddingSize.width & 0xFF);
     output.push_back(3);
     for (auto id = 1; id <= 3; ++id) {
         output.push_back(id);
@@ -81,7 +83,7 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
     output.push_back(0x00);
     for (auto i = 0; i < 16; ++i) output.push_back(DcLuminanceCodesPerBitsize[i]);
     for (auto i = 0; i < 12; ++i) output.push_back(DcLuminanceValues[i]);
-    output.push_back(0x01);
+    output.push_back(0x10);
     for (auto i = 0; i < 16; ++i) output.push_back(AcLuminanceCodesPerBitsize[i]);
     for (auto i = 0; i < 162; ++i) output.push_back(AcLuminanceValues[i]);    
 
@@ -239,14 +241,14 @@ void MJPEGEncoderSerialImpl::start() {
         );
 
         // TODO:
-        /*
+        
         if (_writeIntermediateResult) {
             writeBuffer(
                     _arguments.tmpDir + "/output-" + to_string(frameNo) + ".jpg",
                     outputBuffer.data(), outputBuffer.size()
             );
         }
-        */
+        
 
         aviOutputStream.writeFrame(outputBuffer.data(), outputBuffer.size());
     }

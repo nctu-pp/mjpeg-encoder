@@ -159,6 +159,17 @@ namespace core::encoder {
                 uint8_t id,
                 uint16_t length
         );
+
+        void writeBitCode(
+                vector<char>& output,
+                const BitCode& data
+        );
+
+        struct BitBuffer
+        {
+                int32_t data    = 0; // actually only at most 24 bits are used
+                uint8_t numBits = 0; // number of valid bits (the right-most bits)
+        } buffer;
     };
 }
 
