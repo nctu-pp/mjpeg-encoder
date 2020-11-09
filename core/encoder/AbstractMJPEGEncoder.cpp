@@ -325,3 +325,84 @@ void AbstractMJPEGEncoder::writeBitCode(
             output.push_back(0);
     }
 };
+
+void AbstractMJPEGEncoder::writeJFIFHeader(
+        vector<char>& output
+) const {
+    uint8_t HeaderJfif[2+2+16] =
+        { 0xFF,0xD8,         // SOI marker (start of image)
+            0xFF,0xE0,         // JFIF APP0 tag
+            0,16,              // length: 16 bytes (14 bytes payload + 2 bytes for this length field)
+            'J','F','I','F',0, // JFIF identifier, zero-terminated
+            1,1,               // JFIF version 1.1
+            0,                 // no density units specified
+            0,1,0,1,           // density: 1 pixel "per pixel" horizontally and vertically
+            0,0 };             // no thumbnail (size 0 x 0)
+        for (auto i = 0; i < 2+2+16; ++i)
+            output.push_back(HeaderJfif[i]);
+}
+
+void AbstractMJPEGEncoder::writeQuantizationTable(
+        vector<char>& output,
+        const uint8_t quantLuminance[64],
+        const uint8_t quantChrominance[64]
+) {
+    addMarker(output, 0xDB, 2+2*(1+8*8));
+    output.push_back(0x00);
+    for (auto i = 0; i < 8*8; ++i) output.push_back(quantLuminance[i]);
+    output.push_back(0x01);
+    for (auto i = 0; i < 8*8; ++i) output.push_back(quantChrominance[i]);
+}
+
+void AbstractMJPEGEncoder::writeImageInfos(
+        vector<char>& output
+) {
+    addMarker(output, 0xC0, 2+6+3*3);
+    output.push_back(0x08);
+    output.push_back(this->_cachedPaddingSize.height >> 8);
+    output.push_back(this->_cachedPaddingSize.height & 0xFF);
+    output.push_back(this->_cachedPaddingSize.width >> 8);
+    output.push_back(this->_cachedPaddingSize.width & 0xFF);
+    output.push_back(3);
+    for (auto id = 1; id <= 3; ++id) {
+        output.push_back(id);
+        output.push_back(0x11);
+        output.push_back((id ==  1) ? 0 : 1);
+    }
+}
+
+void AbstractMJPEGEncoder::writeHuffmanTable(
+        vector<char>& output
+) {
+    // Huffman table
+    addMarker(output, 0xC4, 2+208+208);
+    output.push_back(0x00);
+    for (auto i = 0; i < 16; ++i) output.push_back(DcLuminanceCodesPerBitsize[i]);
+    for (auto i = 0; i < 12; ++i) output.push_back(DcLuminanceValues[i]);
+    
+    output.push_back(0x01);
+    for (auto i = 0; i < 16; ++i) output.push_back(AcLuminanceCodesPerBitsize[i]);
+    for (auto i = 0; i < 162; ++i) output.push_back(AcLuminanceValues[i]);  
+
+    output.push_back(0x01);
+    for (auto i = 0; i < 16; ++i) output.push_back(DcChrominanceCodesPerBitsize[i]);
+    for (auto i = 0; i < 12; ++i) output.push_back(DcChrominanceValues[i]);
+    
+    output.push_back(0x11);
+    for (auto i = 0; i < 16; ++i) output.push_back(AcChrominanceCodesPerBitsize[i]);
+    for (auto i = 0; i < 162; ++i) output.push_back(AcChrominanceValues[i]);  
+}
+
+void AbstractMJPEGEncoder::writeScanInfo(
+        vector<char>& output
+) {
+    // start of scan
+    addMarker(output, 0xDA, 2+1+2*3+3);
+    output.push_back(3);
+    for (auto id = 1; id <= 3; ++id) {
+        output.push_back(id);
+        output.push_back((id == 1) ? 0x00 : 0x11);
+    }
+    static const uint8_t Spectral[3] = { 0, 63, 0 }; // spectral selection: must be from 0 to 63; successive approximation must be 0
+    for (auto i = 0; i < 3; ++i) output.push_back(Spectral[i]);
+}

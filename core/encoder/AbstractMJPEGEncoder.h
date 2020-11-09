@@ -170,6 +170,28 @@ namespace core::encoder {
                 int32_t data    = 0; // actually only at most 24 bits are used
                 uint8_t numBits = 0; // number of valid bits (the right-most bits)
         } buffer;
+
+        void writeJFIFHeader(
+                vector<char>& output
+        ) const;
+
+        void writeQuantizationTable(
+                vector<char>& output,
+                const uint8_t quantLuminance[64],
+                const uint8_t quantChrominance[64]
+        );
+
+        void writeImageInfos(
+                vector<char>& output
+        );
+
+        void writeHuffmanTable(
+                vector<char>& output
+        );
+
+        void writeScanInfo(
+                vector<char>& output
+        );
     };
 }
 
