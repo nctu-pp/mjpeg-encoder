@@ -371,28 +371,6 @@ void AbstractMJPEGEncoder::writeImageInfos(
     }
 }
 
-void AbstractMJPEGEncoder::writeHuffmanTable(
-        vector<char>& output
-) {
-    // Huffman table
-    addMarker(output, 0xC4, 2+208+208);
-    output.push_back(0x00);
-    for (auto i = 0; i < 16; ++i) output.push_back(DcLuminanceCodesPerBitsize[i]);
-    for (auto i = 0; i < 12; ++i) output.push_back(DcLuminanceValues[i]);
-    
-    output.push_back(0x01);
-    for (auto i = 0; i < 16; ++i) output.push_back(AcLuminanceCodesPerBitsize[i]);
-    for (auto i = 0; i < 162; ++i) output.push_back(AcLuminanceValues[i]);  
-
-    output.push_back(0x01);
-    for (auto i = 0; i < 16; ++i) output.push_back(DcChrominanceCodesPerBitsize[i]);
-    for (auto i = 0; i < 12; ++i) output.push_back(DcChrominanceValues[i]);
-    
-    output.push_back(0x11);
-    for (auto i = 0; i < 16; ++i) output.push_back(AcChrominanceCodesPerBitsize[i]);
-    for (auto i = 0; i < 162; ++i) output.push_back(AcChrominanceValues[i]);  
-}
-
 void AbstractMJPEGEncoder::writeScanInfo(
         vector<char>& output
 ) {

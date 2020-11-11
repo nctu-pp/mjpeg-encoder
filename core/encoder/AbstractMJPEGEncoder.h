@@ -185,10 +185,6 @@ namespace core::encoder {
                 vector<char>& output
         );
 
-        void writeHuffmanTable(
-                vector<char>& output
-        );
-
         void writeScanInfo(
                 vector<char>& output
         );

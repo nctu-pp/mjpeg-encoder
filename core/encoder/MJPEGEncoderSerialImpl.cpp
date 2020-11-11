@@ -105,8 +105,8 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
         // mask    = (2^numBits) - 1
         if (value > mask) // one more bit ?
         {
-        numBits++;
-        mask = (mask << 1) | 1; // append a set bit
+            numBits++;
+            mask = (mask << 1) | 1; // append a set bit
         }
         codewords[-value] = BitCode(mask - value, numBits); // note that I use a negative index => codewords[-value] = codewordsArray[CodeWordLimit  value]
         codewords[+value] = BitCode(       value, numBits);
@@ -121,14 +121,14 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
         for (auto mcuX = 0; mcuX < (this->_cachedPaddingSize).width; mcuX += 8) {
             for (auto deltaY = 0; deltaY < 8; ++deltaY) {
                 auto column = mcuX;
-                auto row = mcuY + deltaY;
+                auto row = (mcuY + deltaY > maxHeight) ? maxHeight : mcuY + deltaY;
                 for (auto deltaX = 0; deltaX < 8; ++deltaX) {
                     auto pixelPos = row * (maxWidth+1) + column;
                     column = (column < maxWidth) ? column + 1: column;
 
-                    Y[deltaY][deltaX] = static_cast<float>(yuvFrameBuffer->getYChannel()[pixelPos]);
-                    Cb[deltaY][deltaX] = static_cast<float>(yuvFrameBuffer->getCbChannel()[pixelPos]);
-                    Cr[deltaY][deltaX] = static_cast<float>(yuvFrameBuffer->getCrChannel()[pixelPos]);
+                    Y[deltaY][deltaX] = static_cast<float>(yuvFrameBuffer->getYChannel()[pixelPos])-128;
+                    Cb[deltaY][deltaX] = static_cast<float>(yuvFrameBuffer->getCbChannel()[pixelPos])-128;
+                    Cr[deltaY][deltaX] = static_cast<float>(yuvFrameBuffer->getCrChannel()[pixelPos])-128;
 
                 }
             }
@@ -138,6 +138,8 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
 
         } // end mcuX
     } // end mcuY
+
+    writeBitCode(output, BitCode(0x7F, 7));
 
     output.push_back(0xFF);
     output.push_back(0xD9);
