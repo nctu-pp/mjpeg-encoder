@@ -313,13 +313,13 @@ void AbstractMJPEGEncoder::writeBitCode(
         vector<char>& output,
         const BitCode& data
 ) {
-    buffer.numBits += data.numBits;
-    buffer.data   <<= data.numBits;
-    buffer.data    |= data.code;
+    _bitbuffer.numBits += data.numBits;
+    _bitbuffer.data   <<= data.numBits;
+    _bitbuffer.data    |= data.code;
 
-    while(buffer.numBits >= 8) {
-        buffer.numBits -= 8;
-        auto oneByte = uint8_t(buffer.data >> buffer.numBits);
+    while(_bitbuffer.numBits >= 8) {
+        _bitbuffer.numBits -= 8;
+        auto oneByte = uint8_t(_bitbuffer.data >> _bitbuffer.numBits);
         output.push_back(oneByte);
         if (oneByte == 0xFF)
             output.push_back(0);
@@ -352,6 +352,24 @@ void AbstractMJPEGEncoder::writeQuantizationTable(
     for (auto i = 0; i < 8*8; ++i) output.push_back(quantLuminance[i]);
     output.push_back(0x01);
     for (auto i = 0; i < 8*8; ++i) output.push_back(quantChrominance[i]);
+}
+
+void AbstractMJPEGEncoder::writeHuffmanTable(
+        vector<char>& output         
+) {
+    addMarker(output, 0xC4, 2+208+208);
+    output.push_back(0x00);
+    for (auto i = 0; i < 16; ++i) output.push_back(DcLuminanceCodesPerBitsize[i]);
+    for (auto i = 0; i < 12; ++i) output.push_back(DcLuminanceValues[i]);
+    output.push_back(0x10);
+    for (auto i = 0; i < 16; ++i) output.push_back(AcLuminanceCodesPerBitsize[i]);
+    for (auto i = 0; i < 162; ++i) output.push_back(AcLuminanceValues[i]);
+    output.push_back(0x01);
+    for (auto i = 0; i < 16; ++i) output.push_back(DcChrominanceCodesPerBitsize[i]);
+    for (auto i = 0; i < 12; ++i) output.push_back(DcChrominanceValues[i]);
+    output.push_back(0x11);
+    for (auto i = 0; i < 16; ++i) output.push_back(AcChrominanceCodesPerBitsize[i]);
+    for (auto i = 0; i < 162; ++i) output.push_back(AcChrominanceValues[i]);    
 }
 
 void AbstractMJPEGEncoder::writeImageInfos(

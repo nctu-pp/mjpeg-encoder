@@ -131,6 +131,8 @@ namespace core::encoder {
                 0xB5,0xB6,0xB7,0xB8,0xB9,0xBA,0xC2,0xC3,0xC4,0xC5,0xC6,0xC7,0xC8,0xC9,0xCA,0xD2,0xD3,0xD4,0xD5,0xD6,0xD7,0xD8,0xD9,0xDA,
                 0xE2,0xE3,0xE4,0xE5,0xE6,0xE7,0xE8,0xE9,0xEA,0xF2,0xF3,0xF4,0xF5,0xF6,0xF7,0xF8,0xF9,0xFA };
 
+        const float AanScaleFactors[8] = { 1, 1.387039845f, 1.306562965f, 1.175875602f, 1, 0.785694958f, 0.541196100f, 0.275899379f };
+        
         void DCT(
                 float block[8*8],
                 uint8_t stride
@@ -169,7 +171,11 @@ namespace core::encoder {
         {
                 int32_t data    = 0; // actually only at most 24 bits are used
                 uint8_t numBits = 0; // number of valid bits (the right-most bits)
-        } buffer;
+                void init() {
+                        data = 0;
+                        numBits = 0;
+                }
+        } _bitbuffer;
 
         void writeJFIFHeader(
                 vector<char>& output
@@ -179,6 +185,10 @@ namespace core::encoder {
                 vector<char>& output,
                 const uint8_t quantLuminance[64],
                 const uint8_t quantChrominance[64]
+        );
+
+        void writeHuffmanTable(
+                vector<char>& output             
         );
 
         void writeImageInfos(

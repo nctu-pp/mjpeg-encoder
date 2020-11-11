@@ -28,6 +28,7 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
     auto yuvFrameBuffer = static_cast<color::YCbCr444 *>(sharedData[0]);
     transformColorSpace(paddedData, *yuvFrameBuffer, this->_cachedPaddingSize);
 
+    _bitbuffer.init();
     writeJFIFHeader(output);
 
     quality = clamp(quality, 1, 100);
@@ -51,13 +52,7 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
     // write infos: SOF0 - start of frame
     writeImageInfos(output);
 
-    addMarker(output, 0xC4, 2+208+208);
-    output.push_back(0x00);
-    for (auto i = 0; i < 16; ++i) output.push_back(DcLuminanceCodesPerBitsize[i]);
-    for (auto i = 0; i < 12; ++i) output.push_back(DcLuminanceValues[i]);
-    output.push_back(0x10);
-    for (auto i = 0; i < 16; ++i) output.push_back(AcLuminanceCodesPerBitsize[i]);
-    for (auto i = 0; i < 162; ++i) output.push_back(AcLuminanceValues[i]);
+    writeHuffmanTable(output);
 
     BitCode huffmanLuminanceDC[256];
     BitCode huffmanLuminanceAC[256];
@@ -66,14 +61,6 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
 
     BitCode huffmanChrominanceDC[256];
     BitCode huffmanChrominanceAC[256];
-
-    output.push_back(0x01);
-    for (auto i = 0; i < 16; ++i) output.push_back(DcChrominanceCodesPerBitsize[i]);
-    for (auto i = 0; i < 12; ++i) output.push_back(DcChrominanceValues[i]);
-    output.push_back(0x11);
-    for (auto i = 0; i < 16; ++i) output.push_back(AcChrominanceCodesPerBitsize[i]);
-    for (auto i = 0; i < 162; ++i) output.push_back(AcChrominanceValues[i]);    
-
     generateHuffmanTable(DcChrominanceCodesPerBitsize, DcChrominanceValues, huffmanChrominanceDC);
     generateHuffmanTable(AcChrominanceCodesPerBitsize, AcChrominanceValues, huffmanChrominanceAC);
 
@@ -86,9 +73,6 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
     {
         auto row    = ZigZagInv[i] / 8; // same as ZigZagInv[i] >> 3
         auto column = ZigZagInv[i] % 8; // same as ZigZagInv[i] &  7
-
-        // scaling constants for AAN DCT algorithm: AanScaleFactors[0] = 1, AanScaleFactors[k=1..7] = cos(k*PI/16) * sqrt(2)
-        static const float AanScaleFactors[8] = { 1, 1.387039845f, 1.306562965f, 1.175875602f, 1, 0.785694958f, 0.541196100f, 0.275899379f };
         auto factor = 1 / (AanScaleFactors[row] * AanScaleFactors[column] * 8);
         scaledLuminance  [ZigZagInv[i]] = factor / quantLuminance  [i];
         scaledChrominance[ZigZagInv[i]] = factor / quantChrominance[i];
