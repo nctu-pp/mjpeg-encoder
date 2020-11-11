@@ -377,10 +377,11 @@ void AbstractMJPEGEncoder::writeImageInfos(
 ) {
     addMarker(output, 0xC0, 2+6+3*3);
     output.push_back(0x08);
-    output.push_back(this->_cachedPaddingSize.height >> 8);
-    output.push_back(this->_cachedPaddingSize.height & 0xFF);
-    output.push_back(this->_cachedPaddingSize.width >> 8);
-    output.push_back(this->_cachedPaddingSize.width & 0xFF);
+    
+    output.push_back(this->_arguments.size.height >> 8);
+    output.push_back(this->_arguments.size.height & 0xFF);
+    output.push_back(this->_arguments.size.width >> 8);
+    output.push_back(this->_arguments.size.width & 0xFF);
     output.push_back(3);
     for (auto id = 1; id <= 3; ++id) {
         output.push_back(id);
