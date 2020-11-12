@@ -33,6 +33,8 @@ add_executable(
         io/RawVideoReader.cpp
 
         # core
+        core/Utils.h
+        core/Utils.cpp
         core/AVIOutputStream.h
         core/AVIOutputStream.cpp
 

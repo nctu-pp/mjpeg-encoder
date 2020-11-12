@@ -5,6 +5,7 @@
 #pragma once
 
 #include "AbstractMJPEGEncoder.h"
+#include "../Utils.h"
 #include <cassert>
 
 namespace core::encoder {
