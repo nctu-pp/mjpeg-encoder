@@ -221,7 +221,7 @@ void MJPEGEncoderSerialImpl::start() {
              << "Time: " << Utils::formatTimestamp(currentTime) << " / " << totalTimeStr
              << endl;
     }
-    //aviOutputStream.close();
+    aviOutputStream.close();
 
     cout << endl
          << "Video encoded, output file located at " << _arguments.output

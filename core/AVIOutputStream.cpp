@@ -255,5 +255,6 @@ void core::AVIOutputStream::close() {
         fwrite_DWORD(_lenVec[n]);
         n++;
     }
+    _outStream.close();
     _closed = true;
 }
