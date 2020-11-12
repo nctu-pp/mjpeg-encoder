@@ -88,6 +88,5 @@ int main(int argc, char *argv[]) {
 
     mjpegEncoder->start();
     mjpegEncoder->finalize();
-    cout << "final" << endl;
     return 0;
 }

@@ -56,7 +56,6 @@ void core::AVIOutputStream::start() {
     // RIFF_LIST.dwRIFF = 'RIFF';
     fwrite_word("RIFF");
     DWORD len = 0;
-    cout << _numOfFrames << endl;
 
     RIFF_LIST.dwSize = 150 + 12 + len + 8 * _numOfFrames + 8 + 4 * 4 * _numOfFrames;
     fwrite_DWORD(RIFF_LIST.dwSize);
