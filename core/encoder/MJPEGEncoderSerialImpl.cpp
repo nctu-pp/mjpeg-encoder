@@ -161,7 +161,7 @@ void MJPEGEncoderSerialImpl::start() {
     aviOutputStream.start();
 
     // HACK: create empty file
-    if(_writeIntermediateResult) {
+    if (_writeIntermediateResult) {
         writeBuffer(_arguments.tmpDir + "/yuv444.raw", nullptr, 0);
     }
 
@@ -170,6 +170,13 @@ void MJPEGEncoderSerialImpl::start() {
             nullptr,
     };
 
+    auto totalSeconds = Utils::getCurrentTimestamp(
+            videoReader.getTotalFrames(), videoReader.getTotalFrames(),
+            _arguments.fps
+    );
+    auto totalTimeStr = Utils::formatTimestamp(totalSeconds);
+
+    cout << endl;
     for (size_t frameNo = 0; frameNo < totalFrames; frameNo++) {
         int readFrameNo = videoReader.readFrame(buffer, 1);
         doPadding(
@@ -190,19 +197,35 @@ void MJPEGEncoderSerialImpl::start() {
         );
 
         // TODO:
-        
         if (_writeIntermediateResult) {
             writeBuffer(
                     _arguments.tmpDir + "/output-" + to_string(frameNo) + ".jpg",
                     outputBuffer.data(), outputBuffer.size()
             );
         }
-        
 
         aviOutputStream.writeFrame(outputBuffer.data(), outputBuffer.size());
+
+        auto currentTime = Utils::getCurrentTimestamp(frameNo + 1, videoReader.getTotalFrames(), _arguments.fps);
+        auto currentTimeStr = Utils::formatTimestamp(currentTime);
+        /*
+        Utils::printProgress(
+                cout,
+                string("Time: ") +
+                Utils::formatTimestamp(currentTime) +
+                " / " +
+                totalTimeStr
+        );
+         */
+        cout << "\u001B[A" << std::flush
+             << "Time: " << Utils::formatTimestamp(currentTime) << " / " << totalTimeStr
+             << endl;
     }
     //aviOutputStream.close();
 
+    cout << endl
+         << "Video encoded, output file located at " << _arguments.output
+         << endl;
     delete[] buffer;
     delete[] paddedBuffer;
 }
