@@ -201,7 +201,7 @@ void MJPEGEncoderSerialImpl::start() {
 
         aviOutputStream.writeFrame(outputBuffer.data(), outputBuffer.size());
     }
-    aviOutputStream.close();
+    //aviOutputStream.close();
 
     delete[] buffer;
     delete[] paddedBuffer;

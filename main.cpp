@@ -29,6 +29,7 @@ int main(int argc, char *argv[]) {
             .quality = 100,
     };
 
+
     if (argc == 1) {
         showHelp(argv[0]);
         return 0;
@@ -87,6 +88,6 @@ int main(int argc, char *argv[]) {
 
     mjpegEncoder->start();
     mjpegEncoder->finalize();
-
+    cout << "final" << endl;
     return 0;
 }

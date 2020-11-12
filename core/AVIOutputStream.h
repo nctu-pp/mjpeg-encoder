@@ -5,6 +5,7 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <vector>
 
 #include "../model/Model.h"
 
@@ -25,6 +26,12 @@ namespace core {
         // remove this if avi container do not need this info
         AVIOutputStream *setTotalFrames(size_t numOfFrames);
 
+        void fwrite_DWORD(DWORD word);
+
+        void fwrite_WORD(WORD word);
+        
+        void fwrite_word(string word);
+
         void start();
 
         void writeFrame(const char *data, int len);
@@ -36,6 +43,12 @@ namespace core {
         ofstream _outStream;
         bool _started;
         bool _closed;
+        size_t _numOfFrames;
+        int _fps;
+        Size _size;
+        vector<unsigned long> _lenVec;
+        vector<unsigned long> _offsetVec;
+        unsigned long _offsetCount;
 
         void writeHeader();
     };
