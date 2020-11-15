@@ -13,3 +13,23 @@ MJPEGEncoderOpenMPImpl::MJPEGEncoderOpenMPImpl(const Arguments &arguments) : Abs
         arguments) {
 
 }
+
+void MJPEGEncoderOpenMPImpl::start() {
+
+}
+
+void MJPEGEncoderOpenMPImpl::finalize() {
+
+}
+
+void MJPEGEncoderOpenMPImpl::encodeJpeg(color::RGBA *paddedData, int length, int quality, vector<char> &output,
+                                        void **sharedData) {
+
+}
+
+void MJPEGEncoderOpenMPImpl::transformColorSpace(
+        color::RGBA *__restrict rgbaBuffer, color::YCbCr444 &yuv444Buffer,
+        const Size &frameSize
+) const {
+    AbstractMJPEGEncoder::transformColorSpace(rgbaBuffer, yuv444Buffer, frameSize);
+}

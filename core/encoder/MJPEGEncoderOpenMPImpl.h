@@ -24,5 +24,10 @@ namespace core::encoder {
                 vector<char> &output,
                 void** sharedData
         ) override;
+
+        void transformColorSpace(
+                color::RGBA *__restrict rgbaBuffer, color::YCbCr444 &yuv444Buffer,
+                const Size &frameSize
+        ) const override;
     };
 }

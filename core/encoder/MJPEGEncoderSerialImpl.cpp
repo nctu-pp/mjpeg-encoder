@@ -12,10 +12,6 @@ using namespace core::encoder;
 
 MJPEGEncoderSerialImpl::MJPEGEncoderSerialImpl(const Arguments &arguments)
         : AbstractMJPEGEncoder(arguments) {
-    if (_writeIntermediateResult) {
-        _yuvTmpData.open(_arguments.tmpDir + "/yuv444.raw",
-                         std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
-    }
 }
 
 void MJPEGEncoderSerialImpl::encodeJpeg(
@@ -127,13 +123,6 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
 
     output.push_back(0xFF);
     output.push_back(0xD9);
-
-    // just for see intermediate result
-    if (_writeIntermediateResult) {
-        _yuvTmpData.write((char *) yuvFrameBuffer->getYChannel(), length);
-        _yuvTmpData.write((char *) yuvFrameBuffer->getCbChannel(), length);
-        _yuvTmpData.write((char *) yuvFrameBuffer->getCrChannel(), length);
-    }
 }
 
 void MJPEGEncoderSerialImpl::start() {
@@ -160,11 +149,6 @@ void MJPEGEncoderSerialImpl::start() {
 
     aviOutputStream.start();
 
-    // HACK: create empty file
-    if (_writeIntermediateResult) {
-        writeBuffer(_arguments.tmpDir + "/yuv444.raw", nullptr, 0);
-    }
-
     void *passData[] = {
             &yuvFrameBuffer,
             nullptr,
@@ -184,10 +168,6 @@ void MJPEGEncoderSerialImpl::start() {
                 paddedBuffer, this->_cachedPaddingSize
         );
 
-        // if (_writeIntermediateResult) {
-        //     writeBuffer(_arguments.tmpDir + "/pad.raw", paddedBuffer, paddedRgbFrameSize);
-        // }
-
         outputBuffer.clear();
         this->encodeJpeg(
                 paddedRgbaPtr, totalPixels,
@@ -196,7 +176,6 @@ void MJPEGEncoderSerialImpl::start() {
                 passData
         );
 
-        // TODO:
         if (_writeIntermediateResult) {
             writeBuffer(
                     _arguments.tmpDir + "/output-" + to_string(frameNo) + ".jpg",
@@ -231,7 +210,5 @@ void MJPEGEncoderSerialImpl::start() {
 }
 
 void MJPEGEncoderSerialImpl::finalize() {
-    if (_writeIntermediateResult) {
-        _yuvTmpData.close();
-    }
+
 }

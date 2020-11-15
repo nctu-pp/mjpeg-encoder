@@ -14,8 +14,7 @@ namespace core::encoder {
         explicit MJPEGEncoderSerialImpl(const Arguments &arguments);
 
     protected:
-        bool _writeIntermediateResult = true;
-        ofstream _yuvTmpData;
+        bool _writeIntermediateResult = false;
 
         void start() override;
 
