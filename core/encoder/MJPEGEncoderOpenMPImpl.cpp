@@ -11,11 +11,20 @@ using namespace core::encoder;
 
 MJPEGEncoderOpenMPImpl::MJPEGEncoderOpenMPImpl(const Arguments &arguments) : AbstractMJPEGEncoder(
         arguments) {
-
+    if (arguments.numThreads > 0)
+        omp_set_num_threads(arguments.numThreads);
 }
 
 void MJPEGEncoderOpenMPImpl::start() {
+    const auto maxThreads = omp_get_max_threads();
 
+    /**
+     * TODO: In addition to do anything in serial, also need declare some local buffer, local output buffer for
+     *       sub-function do encode in theirs buffer by thread-id, and pass them by sharedData parameters when
+     *       using sharedData.
+     *       One important things is: do not re-create stl container (e.g., vector), or destructor may cost many
+     *       time. Reuse them if possible.
+     */
 }
 
 void MJPEGEncoderOpenMPImpl::finalize() {
