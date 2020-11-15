@@ -29,5 +29,10 @@ namespace core::encoder {
                 color::RGBA *__restrict rgbaBuffer, color::YCbCr444 &yuv444Buffer,
                 const Size &frameSize
         ) const override;
+
+        void doPadding(
+                char *__restrict originalBuffer, const Size &originalSize,
+                char *__restrict targetBuffer, const Size &targetSize
+        ) override;
     };
 }

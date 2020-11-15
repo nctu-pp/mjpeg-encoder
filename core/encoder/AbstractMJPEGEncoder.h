@@ -58,7 +58,7 @@ namespace core::encoder {
         Arguments _arguments;
         Size _cachedPaddingSize{0, 0};
 
-        static void doPadding(
+        virtual void doPadding(
                 char *__restrict originalBuffer, const Size &originalSize,
                 char *__restrict targetBuffer, const Size &targetSize
         );
