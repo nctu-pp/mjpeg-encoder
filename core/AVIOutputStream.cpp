@@ -8,7 +8,7 @@ core::AVIOutputStream::AVIOutputStream(const string &path) {
     _path = path;
     _started = false;
     _closed = false;
-    this->_outStream.open(path.c_str());
+    this->_outStream.open(path.c_str(), fstream::out | fstream::binary);
 }
 
 core::AVIOutputStream *core::AVIOutputStream::setSize(const Size &size) {
