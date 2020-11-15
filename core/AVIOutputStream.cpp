@@ -42,7 +42,7 @@ void core::AVIOutputStream::fwrite_WORD(WORD word) {
   }
 }
 
-void core::AVIOutputStream::fwrite_word(string word) {
+void core::AVIOutputStream::fwrite_word(const char* word) {
   for (int i = 0; i < 4; i++) {
     this->_outStream << (unsigned char)word[i];
   }

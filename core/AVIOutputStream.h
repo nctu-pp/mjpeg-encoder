@@ -30,7 +30,7 @@ namespace core {
 
         void fwrite_WORD(WORD word);
         
-        void fwrite_word(string word);
+        void fwrite_word(const char* word);
 
         void start();
 
