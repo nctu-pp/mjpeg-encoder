@@ -27,6 +27,7 @@ int main(int argc, char *argv[]) {
     Arguments arguments{
             .tmpDir = filesystem::temp_directory_path().string(),
             .quality = 100,
+            .kind = Serial,
     };
 
 
@@ -42,14 +43,14 @@ int main(int argc, char *argv[]) {
                 {"size",     required_argument, nullptr, 's'},
                 {"fps",      required_argument, nullptr, 'r'},
                 {"output",   required_argument, nullptr, 'o'},
-                {"quality",  optional_argument, nullptr, 'q'},
-                {"threads",  optional_argument, nullptr, 't'},
-                {"temp-dir", optional_argument, nullptr, 'T'},
-                {"kind",     optional_argument, nullptr, 'k'},
+                {"quality",  required_argument, nullptr, 'q'},
+                {"threads",  required_argument, nullptr, 't'},
+                {"temp-dir", required_argument, nullptr, 'T'},
+                {"kind",     required_argument, nullptr, 'k'},
                 {"help",     no_argument,       nullptr, 'h'},
         };
         char opt;
-        while ((opt = (char) getopt_long(argc, argv, "i:s:r:o:t:T:q:h?", long_options, nullptr)) != EOF) {
+        while ((opt = (char) getopt_long(argc, argv, ":i:s:r:o:t:T:q:k:h?", long_options, nullptr)) != EOF) {
             switch (opt) {
                 case 'i':
                     arguments.input = string(optarg);
@@ -75,6 +76,11 @@ int main(int argc, char *argv[]) {
                     break;
                 case 'k':
                     arguments.kind = model::parseImplKind(optarg);
+                    break;
+                case ':':
+                    /* missing option argument 参数缺失*/
+                    cerr << "option -'" << optopt << "' requires an argument" << endl;
+                    exit(-1);
                     break;
                 case '?':
                 default:
