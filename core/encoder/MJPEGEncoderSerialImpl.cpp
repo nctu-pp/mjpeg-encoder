@@ -12,6 +12,12 @@ using namespace core::encoder;
 
 MJPEGEncoderSerialImpl::MJPEGEncoderSerialImpl(const Arguments &arguments)
         : AbstractMJPEGEncoder(arguments) {
+    // generate huffmanLuminanceDC and huffmanLuminanceAC first
+    generateHuffmanTable(DcLuminanceCodesPerBitsize, DcLuminanceValues, huffmanLuminanceDC);
+    generateHuffmanTable(AcLuminanceCodesPerBitsize, AcLuminanceValues, huffmanLuminanceAC);
+    // generate huffmanChrominanceDC and huffmanChrominanceAC first
+    generateHuffmanTable(DcChrominanceCodesPerBitsize, DcChrominanceValues, huffmanChrominanceDC);
+    generateHuffmanTable(AcChrominanceCodesPerBitsize, AcChrominanceValues, huffmanChrominanceAC);
 }
 
 void MJPEGEncoderSerialImpl::encodeJpeg(
@@ -49,16 +55,6 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
     writeImageInfos(output);
 
     writeHuffmanTable(output);
-
-    BitCode huffmanLuminanceDC[256];
-    BitCode huffmanLuminanceAC[256];
-    generateHuffmanTable(DcLuminanceCodesPerBitsize, DcLuminanceValues, huffmanLuminanceDC);
-    generateHuffmanTable(AcLuminanceCodesPerBitsize, AcLuminanceValues, huffmanLuminanceAC);
-
-    BitCode huffmanChrominanceDC[256];
-    BitCode huffmanChrominanceAC[256];
-    generateHuffmanTable(DcChrominanceCodesPerBitsize, DcChrominanceValues, huffmanChrominanceDC);
-    generateHuffmanTable(AcChrominanceCodesPerBitsize, AcChrominanceValues, huffmanChrominanceAC);
 
     writeScanInfo(output);
 

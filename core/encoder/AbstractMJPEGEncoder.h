@@ -133,6 +133,12 @@ namespace core::encoder {
 
         const float AanScaleFactors[8] = { 1, 1.387039845f, 1.306562965f, 1.175875602f, 1, 0.785694958f, 0.541196100f, 0.275899379f };
         
+        BitCode huffmanLuminanceDC[256];
+        BitCode huffmanLuminanceAC[256];
+
+        BitCode huffmanChrominanceDC[256];
+        BitCode huffmanChrominanceAC[256];
+
         void DCT(
                 float block[8*8],
                 uint8_t stride
