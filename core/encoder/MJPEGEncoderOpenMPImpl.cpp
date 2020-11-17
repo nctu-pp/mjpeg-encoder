@@ -62,16 +62,17 @@ void MJPEGEncoderOpenMPImpl::transformColorSpace(
         auto *__restrict cbChannel = cbChannelBase + offset;
         auto *__restrict crChannel = crChannelBase + offset;
 
-#pragma omp ordered simd
-        for (auto col = 0; col < totalCols; col++) {
+        const auto finalTotalCols = totalCols;
+#pragma clang loop vectorize(enable)
+        for (auto col = 0; col < finalTotalCols; col++) {
             auto colorPtr = rgbaColorPtr + col;
             b[col] = colorPtr->color.b;
             g[col] = colorPtr->color.g;
             r[col] = colorPtr->color.r;
         }
 
-#pragma omp ordered simd
-        for (auto col = 0; col < totalCols; col++) {
+#pragma clang loop vectorize(enable)
+        for (auto col = 0; col < finalTotalCols; col++) {
             auto yF = (int) (+0.299f * r[col] + 0.587f * g[col] + 0.114f * b[col]);
             auto cbF = (int) (-0.16874f * r[col] - 0.33126f * g[col] + 0.5f * b[col] + 128.f);
             auto crF = (int) (+0.5f * r[col] - 0.41869f * g[col] - 0.08131f * b[col] + 128.f);
