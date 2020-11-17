@@ -40,48 +40,10 @@ void MJPEGEncoderOpenMPImpl::transformColorSpace(
         color::RGBA *__restrict rgbaBuffer, color::YCbCr444 &yuv444Buffer,
         const Size &frameSize
 ) const {
-    const auto totalRows = frameSize.height;
-    const auto totalCols = frameSize.width;
-
-    float b[totalCols];
-    float g[totalCols];
-    float r[totalCols];
-    auto *__restrict yChannelBase = yuv444Buffer.getYChannel();
-    auto *__restrict cbChannelBase = yuv444Buffer.getCbChannel();
-    auto *__restrict crChannelBase = yuv444Buffer.getCrChannel();
-#pragma omp parallel for simd default(none) \
-            shared( \
-                totalRows, totalCols, \
-                b, g, r, \
-                rgbaBuffer, yChannelBase, cbChannelBase, crChannelBase \
-            )
-    for (auto row = 0; row < totalRows; row++) {
-        auto offset = (totalCols * row);
-        auto rgbaColorPtr = rgbaBuffer + offset;
-        auto *__restrict yChannel = yChannelBase + offset;
-        auto *__restrict cbChannel = cbChannelBase + offset;
-        auto *__restrict crChannel = crChannelBase + offset;
-
-        const auto finalTotalCols = totalCols;
-#pragma clang loop vectorize(enable)
-        for (auto col = 0; col < finalTotalCols; col++) {
-            auto colorPtr = rgbaColorPtr + col;
-            b[col] = colorPtr->color.b;
-            g[col] = colorPtr->color.g;
-            r[col] = colorPtr->color.r;
-        }
-
-#pragma clang loop vectorize(enable)
-        for (auto col = 0; col < finalTotalCols; col++) {
-            auto yF = (int) (+0.299f * r[col] + 0.587f * g[col] + 0.114f * b[col]);
-            auto cbF = (int) (-0.16874f * r[col] - 0.33126f * g[col] + 0.5f * b[col] + 128.f);
-            auto crF = (int) (+0.5f * r[col] - 0.41869f * g[col] - 0.08131f * b[col] + 128.f);
-
-            yChannel[col] = (char) (yF & 0xff);
-            cbChannel[col] = (char) (cbF & 0xff);
-            crChannel[col] = (char) (crF & 0xff);
-        }
-    }
+    // Since context switch overhead too high, use original instead.
+    AbstractMJPEGEncoder::transformColorSpace(
+            rgbaBuffer, yuv444Buffer, frameSize
+    );
 }
 
 void MJPEGEncoderOpenMPImpl::doPadding(char *originalBuffer, const Size &originalSize, char *targetBuffer,
