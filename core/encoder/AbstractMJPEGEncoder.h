@@ -30,17 +30,17 @@ namespace core::encoder {
         explicit AbstractMJPEGEncoder(const Arguments &arguments);
 
         virtual void encodeJpeg(
-                color::RGBA *paddedData, int length, int quality,
+                color::RGBA *paddedData, int length,
                 vector<char> &output,
                 void **sharedData
         ) = 0;
 
         inline void encodeJpeg(
-                color::RGBA *paddedData, int length, int quality,
+                color::RGBA *paddedData, int length,
                 vector<char> &output
         ) {
             return encodeJpeg(
-                    paddedData, length, quality,
+                    paddedData, length,
                     output,
                     nullptr
             );
@@ -133,18 +133,24 @@ namespace core::encoder {
 
         const float AanScaleFactors[8] = { 1, 1.387039845f, 1.306562965f, 1.175875602f, 1, 0.785694958f, 0.541196100f, 0.275899379f };
         
-        BitCode huffmanLuminanceDC[256];
-        BitCode huffmanLuminanceAC[256];
+        BitCode _huffmanLuminanceDC[256];
+        BitCode _huffmanLuminanceAC[256];
 
-        BitCode huffmanChrominanceDC[256];
-        BitCode huffmanChrominanceAC[256];
+        BitCode _huffmanChrominanceDC[256];
+        BitCode _huffmanChrominanceAC[256];
+
+        uint8_t _quantLuminance  [8*8];
+        uint8_t _quantChrominance[8*8];
+
+        float _scaledLuminance  [8*8];
+        float _scaledChrominance[8*8];
 
         void DCT(
                 float block[8*8],
                 uint8_t stride
         ) const;
 
-        void generateHuffmanTable(
+        virtual void generateHuffmanTable(
                 const uint8_t numCodes[16],
                 const uint8_t* values,
                 BitCode result[256]

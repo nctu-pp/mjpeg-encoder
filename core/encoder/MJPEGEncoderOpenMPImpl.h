@@ -7,6 +7,7 @@
 #include "AbstractMJPEGEncoder.h"
 #include <cassert>
 #include <omp.h>
+#include "../Utils.h"
 
 namespace core::encoder {
     class MJPEGEncoderOpenMPImpl : public AbstractMJPEGEncoder {
@@ -14,13 +15,14 @@ namespace core::encoder {
         explicit MJPEGEncoderOpenMPImpl(const Arguments &arguments);
 
     protected:
+        bool _writeIntermediateResult = false;
 
         void start() override;
 
         void finalize() override;
 
         void encodeJpeg(
-                color::RGBA *paddedData, int length, int quality,
+                color::RGBA *paddedData, int length,
                 vector<char> &output,
                 void** sharedData
         ) override;

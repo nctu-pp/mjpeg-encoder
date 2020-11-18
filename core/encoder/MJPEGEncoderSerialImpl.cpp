@@ -13,16 +13,38 @@ using namespace core::encoder;
 MJPEGEncoderSerialImpl::MJPEGEncoderSerialImpl(const Arguments &arguments)
         : AbstractMJPEGEncoder(arguments) {
     // generate huffmanLuminanceDC and huffmanLuminanceAC first
-    generateHuffmanTable(DcLuminanceCodesPerBitsize, DcLuminanceValues, huffmanLuminanceDC);
-    generateHuffmanTable(AcLuminanceCodesPerBitsize, AcLuminanceValues, huffmanLuminanceAC);
+    generateHuffmanTable(DcLuminanceCodesPerBitsize, DcLuminanceValues, _huffmanLuminanceDC);
+    generateHuffmanTable(AcLuminanceCodesPerBitsize, AcLuminanceValues, _huffmanLuminanceAC);
     // generate huffmanChrominanceDC and huffmanChrominanceAC first
-    generateHuffmanTable(DcChrominanceCodesPerBitsize, DcChrominanceValues, huffmanChrominanceDC);
-    generateHuffmanTable(AcChrominanceCodesPerBitsize, AcChrominanceValues, huffmanChrominanceAC);
+    generateHuffmanTable(DcChrominanceCodesPerBitsize, DcChrominanceValues, _huffmanChrominanceDC);
+    generateHuffmanTable(AcChrominanceCodesPerBitsize, AcChrominanceValues, _huffmanChrominanceAC);
+    int quality = _arguments.quality;
+
+    quality = clamp(quality, 1, 100);
+    quality = quality < 50 ? 5000 / quality : 200 - quality * 2;
+
+    for (auto i = 0; i < 8*8; ++i)
+    {
+        int luminance   = (DefaultQuantLuminance  [ZigZagInv[i]] * quality + 50) / 100;
+        int chrominance = (DefaultQuantChrominance[ZigZagInv[i]] * quality + 50) / 100;
+
+        // clamp to 1..255
+        _quantLuminance  [i] = clamp(luminance,   1, 255);
+        _quantChrominance[i] = clamp(chrominance, 1, 255);
+    }
+
+    for (auto i = 0; i < 8*8; ++i)
+    {
+        auto row    = ZigZagInv[i] / 8; // same as ZigZagInv[i] >> 3
+        auto column = ZigZagInv[i] % 8; // same as ZigZagInv[i] &  7
+        auto factor = 1 / (AanScaleFactors[row] * AanScaleFactors[column] * 8);
+        _scaledLuminance  [ZigZagInv[i]] = factor / _quantLuminance  [i];
+        _scaledChrominance[ZigZagInv[i]] = factor / _quantChrominance[i];
+    }
 }
 
 void MJPEGEncoderSerialImpl::encodeJpeg(
         color::RGBA *paddedData, int length,
-        int quality,
         vector<char> &output,
         void **sharedData
 ) {
@@ -33,23 +55,7 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
     _bitbuffer.init();
     writeJFIFHeader(output);
 
-    quality = clamp(quality, 1, 100);
-    quality = quality < 50 ? 5000 / quality : 200 - quality * 2;
-
-    uint8_t quantLuminance  [8*8];
-    uint8_t quantChrominance[8*8];
-
-    for (auto i = 0; i < 8*8; ++i)
-    {
-        int luminance   = (DefaultQuantLuminance  [ZigZagInv[i]] * quality + 50) / 100;
-        int chrominance = (DefaultQuantChrominance[ZigZagInv[i]] * quality + 50) / 100;
-
-        // clamp to 1..255
-        quantLuminance  [i] = clamp(luminance,   1, 255);
-        quantChrominance[i] = clamp(chrominance, 1, 255);
-    }
-
-    writeQuantizationTable(output, quantLuminance, quantChrominance);
+    writeQuantizationTable(output, _quantLuminance, _quantChrominance);
 
     // write infos: SOF0 - start of frame
     writeImageInfos(output);
@@ -57,18 +63,6 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
     writeHuffmanTable(output);
 
     writeScanInfo(output);
-
-    float scaledLuminance  [8*8];
-    float scaledChrominance[8*8];
-
-    for (auto i = 0; i < 8*8; ++i)
-    {
-        auto row    = ZigZagInv[i] / 8; // same as ZigZagInv[i] >> 3
-        auto column = ZigZagInv[i] % 8; // same as ZigZagInv[i] &  7
-        auto factor = 1 / (AanScaleFactors[row] * AanScaleFactors[column] * 8);
-        scaledLuminance  [ZigZagInv[i]] = factor / quantLuminance  [i];
-        scaledChrominance[ZigZagInv[i]] = factor / quantChrominance[i];
-    }
 
     // precompute JPEG codewords for quantized DCT
     BitCode  codewordsArray[2 * CodeWordLimit];          // note: quantized[i] is found at codewordsArray[quantized[i] + CodeWordLimit]
@@ -108,9 +102,9 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
 
                 }
             }
-            lastYDC = encodeBlock(output, Y, scaledLuminance, lastYDC, huffmanLuminanceDC, huffmanLuminanceAC, codewords);
-            lastCbDC = encodeBlock(output, Cb, scaledChrominance, lastCbDC, huffmanChrominanceDC, huffmanChrominanceAC, codewords);
-            lastCrDC = encodeBlock(output, Cr, scaledChrominance, lastCrDC, huffmanChrominanceDC, huffmanChrominanceAC, codewords);
+            lastYDC = encodeBlock(output, Y, _scaledLuminance, lastYDC, _huffmanLuminanceDC, _huffmanLuminanceAC, codewords);
+            lastCbDC = encodeBlock(output, Cb, _scaledChrominance, lastCbDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords);
+            lastCrDC = encodeBlock(output, Cr, _scaledChrominance, lastCrDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords);
 
         } // end mcuX
     } // end mcuY
@@ -167,7 +161,6 @@ void MJPEGEncoderSerialImpl::start() {
         outputBuffer.clear();
         this->encodeJpeg(
                 paddedRgbaPtr, totalPixels,
-                _arguments.quality,
                 outputBuffer,
                 passData
         );

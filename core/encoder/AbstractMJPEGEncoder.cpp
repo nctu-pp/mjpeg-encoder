@@ -254,7 +254,7 @@ int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8
         quantized[i] = int(value + (value >= 0 ? +0.5f : -0.5f)); // C++11's nearbyint() achieves a similar effect
         // remember offset of last non-zero coefficient
         if (quantized[i] != 0)
-        posNonZero = i;
+            posNonZero = i;
     }
 
     // same "average color" as previous block ?
@@ -303,10 +303,7 @@ void AbstractMJPEGEncoder::addMarker(
         uint8_t id,
         uint16_t length
 ) {
-    output.push_back(0xFF);
-    output.push_back(id);     // ID, always preceded by 0xFF
-    output.push_back(uint8_t(length >> 8)); // length of the block (big-endian, includes the 2 length bytes as well)
-    output.push_back(uint8_t(length & 0xFF));
+    output.insert(output.end(), {(char)0xFF, (char)id, (char)(length >> 8), (char)(length & 0xFF)});
 }
 
 void AbstractMJPEGEncoder::writeBitCode(
@@ -329,17 +326,14 @@ void AbstractMJPEGEncoder::writeBitCode(
 void AbstractMJPEGEncoder::writeJFIFHeader(
         vector<char>& output
 ) const {
-    uint8_t HeaderJfif[2+2+16] =
-        { 0xFF,0xD8,         // SOI marker (start of image)
-            0xFF,0xE0,         // JFIF APP0 tag
+    output.insert(output.end(), { (char)0xFF, (char)0xD8,         // SOI marker (start of image)
+            (char)0xFF, (char)0xE0,         // JFIF APP0 tag
             0,16,              // length: 16 bytes (14 bytes payload + 2 bytes for this length field)
             'J','F','I','F',0, // JFIF identifier, zero-terminated
             1,1,               // JFIF version 1.1
             0,                 // no density units specified
             0,1,0,1,           // density: 1 pixel "per pixel" horizontally and vertically
-            0,0 };             // no thumbnail (size 0 x 0)
-        for (auto i = 0; i < 2+2+16; ++i)
-            output.push_back(HeaderJfif[i]);
+            0,0 });             // no thumbnail (size 0 x 0));
 }
 
 void AbstractMJPEGEncoder::writeQuantizationTable(
@@ -349,9 +343,9 @@ void AbstractMJPEGEncoder::writeQuantizationTable(
 ) {
     addMarker(output, 0xDB, 2+2*(1+8*8));
     output.push_back(0x00);
-    for (auto i = 0; i < 8*8; ++i) output.push_back(quantLuminance[i]);
+    output.insert(output.end(), &quantLuminance[0], &quantLuminance[64]);
     output.push_back(0x01);
-    for (auto i = 0; i < 8*8; ++i) output.push_back(quantChrominance[i]);
+    output.insert(output.end(), &quantChrominance[0], &quantChrominance[64]);
 }
 
 void AbstractMJPEGEncoder::writeHuffmanTable(
