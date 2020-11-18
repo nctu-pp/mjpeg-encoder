@@ -8,7 +8,7 @@ find_package(Threads REQUIRED)
 # Setup OpenMP
 find_package(OpenMP REQUIRED)
 
-set(COMMON_COMPILE_FLAGS "-mavx -mfma -ffast-math -m64")
+set(COMMON_COMPILE_FLAGS "-mavx -mfma -ffast-math -m64 -mavx2")
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     set(COMMON_COMPILE_FLAGS "${COMMON_COMPILE_FLAGS} -Rpass=loop-vectorize -Rpass-missed=loop-vectorize -Rpass-analysis=loop-vectorize")

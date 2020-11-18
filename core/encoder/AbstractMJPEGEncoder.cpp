@@ -129,6 +129,7 @@ void AbstractMJPEGEncoder::transformColorSpace(
     auto *__restrict cbChannelBase = yuv444Buffer.getCbChannel();
     auto *__restrict crChannelBase = yuv444Buffer.getCrChannel();
 
+#pragma clang loop vectorize(enable) interleave(assume_safety)
     for (auto row = 0; row < totalRows; row++) {
         auto offset = (totalCols * row);
         auto rgbaColorPtr = rgbaBuffer + offset;
@@ -136,6 +137,7 @@ void AbstractMJPEGEncoder::transformColorSpace(
         auto *__restrict cbChannel = cbChannelBase + offset;
         auto *__restrict crChannel = crChannelBase + offset;
 
+#pragma clang loop vectorize(enable) interleave(assume_safety)
         for (auto col = 0; col < totalCols; col++) {
             auto colorPtr = rgbaColorPtr + col;
             b[col] = colorPtr->color.b;
@@ -143,6 +145,7 @@ void AbstractMJPEGEncoder::transformColorSpace(
             r[col] = colorPtr->color.r;
         }
 
+#pragma clang loop vectorize(enable) interleave(assume_safety)
         for (auto col = 0; col < totalCols; col++) {
             auto yF = (int) (+0.299f * r[col] + 0.587f * g[col] + 0.114f * b[col]);
             auto cbF = (int) (-0.16874f * r[col] - 0.33126f * g[col] + 0.5f * b[col] + 128.f);
