@@ -31,7 +31,7 @@ void MJPEGEncoderOpenMPImpl::finalize() {
 
 }
 
-void MJPEGEncoderOpenMPImpl::encodeJpeg(color::RGBA *paddedData, int length, int quality, vector<char> &output,
+void MJPEGEncoderOpenMPImpl::encodeJpeg(color::RGBA *paddedData, int length, vector<char> &output,
                                         void **sharedData) {
 
 }
