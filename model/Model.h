@@ -95,10 +95,10 @@ namespace model {
     ImplKind parseImplKind(const string &str);
 
     // under struct is for avi container
-    typedef unsigned long DWORD;
-    typedef long LONG;
-    typedef unsigned short WORD;
-    typedef unsigned char BYTE;
+    typedef uint32_t DWORD;
+    typedef uint32_t LONG;
+    typedef uint16_t WORD;
+    typedef uint8_t BYTE;
 
     typedef struct {
         DWORD dwRIFF;
