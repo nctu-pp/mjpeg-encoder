@@ -57,7 +57,6 @@ void MJPEGEncoderOpenMPImpl::start() {
 
     RawVideoReader* videoReaderArr[maxThreads];
     for(int i = 0; i < maxThreads; i++)
-        // videoReaderArr[i].setValue(_arguments.input, _arguments.size);
         videoReaderArr[i] = new RawVideoReader(_arguments.input, _arguments.size);
 
     auto totalFrames = videoReaderArr[0]->getTotalFrames();
@@ -74,9 +73,9 @@ void MJPEGEncoderOpenMPImpl::start() {
     for(int rowIndex = 0; rowIndex < maxThreads; rowIndex++)
         paddedBuffer[rowIndex] = new char[paddedRgbFrameSize];
 
-    auto paddedRgbaPtrList = new char*[maxThreads];
+    auto paddedRgbaPtrArr = new char*[maxThreads];
     for(int rowIndex = 0; rowIndex < maxThreads; rowIndex++)
-        paddedRgbaPtrList[rowIndex] = paddedBuffer[rowIndex];
+        paddedRgbaPtrArr[rowIndex] = paddedBuffer[rowIndex];
     AVIOutputStream aviOutputStream(_arguments.output);
 
     (&aviOutputStream)
@@ -109,6 +108,7 @@ void MJPEGEncoderOpenMPImpl::start() {
     auto totalTimeStr = Utils::formatTimestamp(totalSeconds);
     cout << endl;
     for (size_t frameNo = 0; frameNo < totalFrames; frameNo+=maxThreads) {
+        int remain = (frameNo + maxThreads > totalFrames)?(frameNo - totalFrames):0;
         #pragma omp parallel for
         {
             for(int i = 0 ; i < maxThreads; i++){
@@ -127,7 +127,7 @@ void MJPEGEncoderOpenMPImpl::start() {
                     nullptr,
                 };
                 this->encodeJpeg(
-                        (color::RGBA *)paddedRgbaPtrList[tid], totalPixels,
+                        (color::RGBA *)paddedRgbaPtrArr[tid], totalPixels,
                         outputBuffer[tid],
                         passData
                 );
@@ -135,7 +135,7 @@ void MJPEGEncoderOpenMPImpl::start() {
         }
 
         // cout << _arguments.tmpDir << endl;
-        for(int tid = 0 ; tid < maxThreads; tid++){
+        for(int tid = 0 ; tid < maxThreads - remain; tid++){
             if (_writeIntermediateResult) {
                 writeBuffer(
                         _arguments.tmpDir + "/output-" + to_string(frameNo+tid) + ".jpg",
@@ -147,19 +147,21 @@ void MJPEGEncoderOpenMPImpl::start() {
         auto currentTime = Utils::getCurrentTimestamp(frameNo + 1, videoReaderArr[0]->getTotalFrames(), _arguments.fps);
         auto currentTimeStr = Utils::formatTimestamp(currentTime);
 
-        // cout << "\u001B[A" << std::flush
-        //     << "Time: " << Utils::formatTimestamp(currentTime) << " / " << totalTimeStr
-        //     << endl;
+        cout << "\u001B[A" << std::flush
+            << "Time: " << Utils::formatTimestamp(currentTime) << " / " << totalTimeStr
+            << endl;
     }
     aviOutputStream.close();
 
-    // cout << endl
-    //      << "Video encoded, output file located at " << _arguments.output
-    //      << endl;
-    delete[] bufferArr;
-    delete[] paddedBuffer;
-    for(int i = 0; i < maxThreads; i++)
+    cout << endl
+         << "Video encoded, output file located at " << _arguments.output
+         << endl;
+    for(int i = 0; i < maxThreads; i++){
+        delete bufferArr[i];
         delete videoReaderArr[i];
+        delete paddedBuffer[i];
+        delete yuvFrameBuffer[i];
+    }
 }
 
 void MJPEGEncoderOpenMPImpl::finalize() {

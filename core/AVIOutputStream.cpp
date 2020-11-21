@@ -211,18 +211,11 @@ void core::AVIOutputStream::writeFrame(const char *data, int len) {
     dataChunk.dwSize = len;
     fwrite_DWORD(dataChunk.dwSize);
 
-    int l = len;
     //put image into avi containter
-    while (l--) {
-      this->_outStream << (unsigned char)(*data);
-      data++;
-    }
+    this->_outStream.write(data, len);
 
     if (len % 2) {
       this->_outStream << '\0';
-    }
-
-    if (len % 2) {
       len += 1;
     }
 
