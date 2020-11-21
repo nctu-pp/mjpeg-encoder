@@ -49,6 +49,9 @@ add_executable(
         main.cpp
 )
 
+add_library(hook_amd_opencl SHARED hook/hook-amd-opencl.c)
+add_library(hook_nvidia_opencl SHARED hook/hook-nvidia-opencl.c)
+
 # Link libraries
 
 if(OpenCL_FOUND)
