@@ -27,25 +27,15 @@ core::AVIOutputStream *core::AVIOutputStream::setTotalFrames(size_t numOfFrames)
 }
 
 void core::AVIOutputStream::fwrite_DWORD(DWORD word) {
-  unsigned char *p;
-  p = (unsigned char *)&word;
-  for (int i = 0; i < 4; i++) {
-    this->_outStream << (unsigned char)(p[i]);
-  }
+  this->_outStream.write((char *)&word, 4);
 }
 
 void core::AVIOutputStream::fwrite_WORD(WORD word) {
-  unsigned char *p;
-  p = (unsigned char *)&word;
-  for (int i = 0; i < 2; i++) {
-    this->_outStream << (unsigned char)p[i]; 
-  }
+  this->_outStream.write((char *)&word, 2);
 }
 
 void core::AVIOutputStream::fwrite_word(const char* word) {
-  for (int i = 0; i < 4; i++) {
-    this->_outStream << (unsigned char)word[i];
-  }
+  this->_outStream.write(word, 4);
 }
 
 void core::AVIOutputStream::start() {
