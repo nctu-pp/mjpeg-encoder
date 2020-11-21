@@ -19,7 +19,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_COMPILE_FLAGS} ${OpenMP_CXX_FLA
 
 # Setup OpenCL
 find_package(OpenCL)
-include_directories(${OPENCL_INCLUDE_DIR})
 
 add_executable(
         mjpeg_encoder
@@ -52,8 +51,17 @@ add_executable(
 
 # Link libraries
 
-target_link_libraries(
-        mjpeg_encoder
-        ${OPENCL_LIBRARIES}
-        OpenMP::OpenMP_CXX
-)
+if(OpenCL_FOUND)
+    message("Found OpenCL: ${OpenCL_VERSION_STRING}, include dirs: ${OpenCL_INCLUDE_DIRS}, lib dirs: ${OpenCL_LIBRARIES}")
+    target_link_libraries(
+            mjpeg_encoder
+            OpenMP::OpenMP_CXX
+            OpenCL::OpenCL
+    )
+else()
+    message("OpenCL Not Found")
+    target_link_libraries(
+            mjpeg_encoder
+            OpenMP::OpenMP_CXX
+    )
+endif()
