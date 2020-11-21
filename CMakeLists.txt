@@ -53,6 +53,7 @@ add_executable(
 
 if(OpenCL_FOUND)
     message("Found OpenCL: ${OpenCL_VERSION_STRING}, include dirs: ${OpenCL_INCLUDE_DIRS}, lib dirs: ${OpenCL_LIBRARIES}")
+    include_directories("${OpenCL_INCLUDE_DIRS}")
     target_link_libraries(
             mjpeg_encoder
             OpenMP::OpenMP_CXX
