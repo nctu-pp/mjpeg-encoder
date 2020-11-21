@@ -52,7 +52,7 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
     auto yuvFrameBuffer = static_cast<color::YCbCr444 *>(sharedData[0]);
     transformColorSpace(paddedData, *yuvFrameBuffer, this->_cachedPaddingSize);
 
-    _bitbuffer.init();
+    _bitBuffer.init();
     writeJFIFHeader(output);
 
     writeQuantizationTable(output, _quantLuminance, _quantChrominance);
@@ -109,7 +109,7 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
         } // end mcuX
     } // end mcuY
 
-    writeBitCode(output, BitCode(0x7F, 7));
+    writeBitCode(output, BitCode(0x7F, 7), _bitBuffer);
 
     output.push_back(0xFF);
     output.push_back(0xD9);

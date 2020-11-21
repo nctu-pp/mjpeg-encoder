@@ -27,6 +27,17 @@ namespace core::encoder {
                 void** sharedData
         ) override;
 
+        int16_t encodeBlock(
+                vector<char>& output,
+                float block[8][8],
+                const float scaled[8*8],
+                int16_t lastDC,
+                const BitCode huffmanDC[256],
+                const BitCode huffmanAC[256], 
+                const BitCode* codewords,
+                BitBuffer& bitBuffer
+        );
+
         void transformColorSpace(
                 color::RGBA *__restrict rgbaBuffer, color::YCbCr444 &yuv444Buffer,
                 const Size &frameSize

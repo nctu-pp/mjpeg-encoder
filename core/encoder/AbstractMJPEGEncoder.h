@@ -158,7 +158,17 @@ namespace core::encoder {
 
         const int16_t CodeWordLimit = 2048; // +/-2^11, maximum value after DCT
 
-        int16_t encodeBlock(
+        struct BitBuffer
+        {
+                int32_t data    = 0; // actually only at most 24 bits are used
+                uint8_t numBits = 0; // number of valid bits (the right-most bits)
+                void init() {
+                        data = 0;
+                        numBits = 0;
+                }
+        };
+
+        virtual int16_t encodeBlock(
                 vector<char>& output,
                 float block[8][8],
                 const float scaled[8*8],
@@ -173,21 +183,14 @@ namespace core::encoder {
                 uint8_t id,
                 uint16_t length
         );
+        
+        BitBuffer _bitBuffer;
 
         void writeBitCode(
                 vector<char>& output,
-                const BitCode& data
+                const BitCode& data,
+                BitBuffer& bitBuffer
         );
-
-        struct BitBuffer
-        {
-                int32_t data    = 0; // actually only at most 24 bits are used
-                uint8_t numBits = 0; // number of valid bits (the right-most bits)
-                void init() {
-                        data = 0;
-                        numBits = 0;
-                }
-        } _bitbuffer;
 
         void writeJFIFHeader(
                 vector<char>& output

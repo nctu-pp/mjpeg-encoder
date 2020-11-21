@@ -263,12 +263,12 @@ int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8
     // same "average color" as previous block ?
     auto diff = DC - lastDC;
     if (diff == 0)
-        writeBitCode(output, huffmanDC[0x00]);
+        writeBitCode(output, huffmanDC[0x00], _bitBuffer);
     else
     {
         auto bits = codewords[diff]; // nope, encode the difference to previous block's average color
-        writeBitCode(output, huffmanDC[bits.numBits]);
-        writeBitCode(output, bits);
+        writeBitCode(output, huffmanDC[bits.numBits], _bitBuffer);
+        writeBitCode(output, bits, _bitBuffer);
     }
 
     // encode ACs (quantized[1..63])
@@ -282,7 +282,7 @@ int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8
             // split into blocks of at most 16 consecutive zeros
             if (offset > 0xF0) // remember, the counter is in the upper 4 bits, 0xF = 15
             {
-                writeBitCode(output, huffmanAC[0xF0]);
+                writeBitCode(output, huffmanAC[0xF0], _bitBuffer);
                 offset = 0;
             }
             i++;
@@ -290,14 +290,14 @@ int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8
 
         auto encoded = codewords[quantized[i]];
         // combine number of zeros with the number of bits of the next non-zero value
-        writeBitCode(output, huffmanAC[offset + encoded.numBits]);
-        writeBitCode(output, encoded);
+        writeBitCode(output, huffmanAC[offset + encoded.numBits], _bitBuffer);
+        writeBitCode(output, encoded, _bitBuffer);
         offset = 0;
     }
 
     // send end-of-block code (0x00), only needed if there are trailing zeros
     if (posNonZero < 8*8 - 1) // = 63
-        writeBitCode(output, huffmanAC[0x00]);
+        writeBitCode(output, huffmanAC[0x00], _bitBuffer);
     return DC;
 }
 
@@ -311,15 +311,16 @@ void AbstractMJPEGEncoder::addMarker(
 
 void AbstractMJPEGEncoder::writeBitCode(
         vector<char>& output,
-        const BitCode& data
+        const BitCode& data,
+        BitBuffer& bitBuffer
 ) {
-    _bitbuffer.numBits += data.numBits;
-    _bitbuffer.data   <<= data.numBits;
-    _bitbuffer.data    |= data.code;
+    bitBuffer.numBits += data.numBits;
+    bitBuffer.data   <<= data.numBits;
+    bitBuffer.data    |= data.code;
 
-    while(_bitbuffer.numBits >= 8) {
-        _bitbuffer.numBits -= 8;
-        auto oneByte = uint8_t(_bitbuffer.data >> _bitbuffer.numBits);
+    while(bitBuffer.numBits >= 8) {
+        bitBuffer.numBits -= 8;
+        auto oneByte = uint8_t(bitBuffer.data >> bitBuffer.numBits);
         output.push_back(oneByte);
         if (oneByte == 0xFF)
             output.push_back(0);
