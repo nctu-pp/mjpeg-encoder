@@ -84,24 +84,14 @@ int main(int argc, char *argv[]) {
     yArr = new double[n];
     sumArr = new int[n];
 
-    printf("INIT\n");
-    int rndTmp[256];
-    // Initialize vectors on host
-
-    auto rndTmpPtr = (uint8_t *) rndTmp;
-    auto rndTmpLen = (sizeof(rndTmp)) / (sizeof(uint8_t));
-    for (int i = 0; i < n; i++) {
-        prng_gen(&s, rndTmpPtr, rndTmpLen);
-        xArr[i] = (double) rndTmp[0] / INT_MAX;
-        yArr[i] = (double) rndTmp[1] / INT_MAX;
-    }
-    printf("INIT FINISHED\n");
-
-    memset(sumArr, '\0', sizeof(int) * n);
-
     cl_platform_id cpPlatform; // OpenCL platform
     cl_device_id device_id; // device ID
-    obtain_device(CL_DEVICE_TYPE_GPU, cpPlatform, device_id);
+
+    if(argc > 2 && strcmp("gpu", argv[2]) == 0) {
+        obtain_device(CL_DEVICE_TYPE_GPU, cpPlatform, device_id);
+    } else {
+        obtain_device(CL_DEVICE_TYPE_CPU, cpPlatform, device_id);
+    }
     cl_uint maxDimSize = 0;
 
     err = clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(maxDimSize), &maxDimSize,
@@ -131,7 +121,7 @@ int main(int argc, char *argv[]) {
     size_t globalSize, localSize;
 
     // Number of work items in each local work group
-    localSize = maxWorkSize / (1 << maxDimSize);
+    localSize = maxWorkSize;
 
     // Number of total work items - localSize must be devisor
     globalSize = ceil(n / (double) localSize) * localSize;
@@ -161,20 +151,31 @@ int main(int argc, char *argv[]) {
     kernel = clCreateKernel(program, "monteCarloInter", &err);
     die_if_error(__LINE__, err);
 
+    do {
+        printf("INIT\n");
+        int rndTmp[256] __attribute__ ((aligned (32)));
+        // Initialize vectors on host
+
+        auto rndTmpPtr = (uint8_t *) rndTmp;
+        auto rndTmpLen = (sizeof(rndTmp)) / (sizeof(uint8_t));
+        for (int i = 0; i < n; i++) {
+            prng_gen(&s, rndTmpPtr, rndTmpLen);
+            xArr[i] = (double) rndTmp[0] / INT_MAX;
+            yArr[i] = (double) rndTmp[1] / INT_MAX;
+        }
+        printf("INIT FINISHED\n");
+
+        memset(sumArr, '\0', sizeof(int) * n);
+    } while(false);
+
     // Create the input and output arrays in device memory for our calculation
     size_t int_bytes = sizeof(int) * n;
     size_t double_bytes = sizeof(double) * n;
-    clX = clCreateBuffer(context, CL_MEM_READ_ONLY, double_bytes, nullptr, &err);
-    clY = clCreateBuffer(context, CL_MEM_READ_ONLY, double_bytes, nullptr, &err);
+    clX = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, double_bytes, xArr, &err);
+    clY = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, double_bytes, yArr, &err);
     clSum = clCreateBuffer(context, CL_MEM_WRITE_ONLY, int_bytes, nullptr, &err);
 
     // Write our data set into the input array in device memory
-    err = clEnqueueWriteBuffer(
-            queue, clX, CL_TRUE, 0, double_bytes, xArr, 0, nullptr, nullptr);
-    die_if_error(__LINE__, err);
-    err = clEnqueueWriteBuffer(
-            queue, clY, CL_TRUE, 0, double_bytes, yArr, 0, nullptr, nullptr);
-    die_if_error(__LINE__, err);
 
     // Set the arguments to our compute kernel
     err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &clX);
