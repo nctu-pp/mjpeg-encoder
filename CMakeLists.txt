@@ -11,7 +11,7 @@ find_package(OpenMP REQUIRED)
 set(COMMON_COMPILE_FLAGS "-mavx -mfma -ffast-math -m64 -mavx2")
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    set(COMMON_COMPILE_FLAGS "${COMMON_COMPILE_FLAGS} -Rpass=loop-vectorize -Rpass-missed=loop-vectorize -Rpass-analysis=loop-vectorize")
+    # set(COMMON_COMPILE_FLAGS "${COMMON_COMPILE_FLAGS} -Rpass=loop-vectorize -Rpass-missed=loop-vectorize -Rpass-analysis=loop-vectorize")
 endif ()
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_COMPILE_FLAGS} ${OpenMP_C_FLAGS}")
@@ -60,6 +60,18 @@ if(OpenCL_FOUND)
     target_link_libraries(
             mjpeg_encoder
             OpenMP::OpenMP_CXX
+            OpenCL::OpenCL
+    )
+
+    add_executable(
+            opencl-pi
+            pi/shishua.h
+            pi/opencl-pi.cpp
+            pi/opencl-pi.cl
+    )
+
+    target_link_libraries(
+            opencl-pi
             OpenCL::OpenCL
     )
 else()
