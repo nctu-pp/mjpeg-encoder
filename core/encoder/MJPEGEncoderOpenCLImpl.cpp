@@ -2,7 +2,7 @@
 // Created by wcl on 2020/11/05.
 //
 
-#include "MJPEGEncoderSerialImpl.h"
+#include "MJPEGEncoderOpenCLImpl.h"
 
 using namespace io;
 using namespace std;
@@ -10,7 +10,7 @@ using namespace core;
 using namespace core::encoder;
 
 
-MJPEGEncoderSerialImpl::MJPEGEncoderSerialImpl(const Arguments &arguments)
+MJPEGEncoderOpenCLImpl::MJPEGEncoderOpenCLImpl(const Arguments &arguments)
         : AbstractMJPEGEncoder(arguments) {
     // generate huffmanLuminanceDC and huffmanLuminanceAC first
     generateHuffmanTable(DcLuminanceCodesPerBitsize, DcLuminanceValues, _huffmanLuminanceDC);
@@ -23,27 +23,25 @@ MJPEGEncoderSerialImpl::MJPEGEncoderSerialImpl(const Arguments &arguments)
     quality = clamp(quality, 1, 100);
     quality = quality < 50 ? 5000 / quality : 200 - quality * 2;
 
-    for (auto i = 0; i < 8*8; ++i)
-    {
-        int luminance   = (DefaultQuantLuminance  [ZigZagInv[i]] * quality + 50) / 100;
+    for (auto i = 0; i < 8 * 8; ++i) {
+        int luminance = (DefaultQuantLuminance[ZigZagInv[i]] * quality + 50) / 100;
         int chrominance = (DefaultQuantChrominance[ZigZagInv[i]] * quality + 50) / 100;
 
         // clamp to 1..255
-        _quantLuminance  [i] = clamp(luminance,   1, 255);
+        _quantLuminance[i] = clamp(luminance, 1, 255);
         _quantChrominance[i] = clamp(chrominance, 1, 255);
     }
 
-    for (auto i = 0; i < 8*8; ++i)
-    {
-        auto row    = ZigZagInv[i] / 8; // same as ZigZagInv[i] >> 3
+    for (auto i = 0; i < 8 * 8; ++i) {
+        auto row = ZigZagInv[i] / 8; // same as ZigZagInv[i] >> 3
         auto column = ZigZagInv[i] % 8; // same as ZigZagInv[i] &  7
         auto factor = 1 / (AanScaleFactors[row] * AanScaleFactors[column] * 8);
-        _scaledLuminance  [ZigZagInv[i]] = factor / _quantLuminance  [i];
+        _scaledLuminance[ZigZagInv[i]] = factor / _quantLuminance[i];
         _scaledChrominance[ZigZagInv[i]] = factor / _quantChrominance[i];
     }
 }
 
-void MJPEGEncoderSerialImpl::encodeJpeg(
+void MJPEGEncoderOpenCLImpl::encodeJpeg(
         color::RGBA *paddedData, int length,
         vector<char> &output,
         void **sharedData
@@ -64,12 +62,12 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
     writeScanInfo(output);
 
     // precompute JPEG codewords for quantized DCT
-    BitCode  codewordsArray[2 * CodeWordLimit];          // note: quantized[i] is found at codewordsArray[quantized[i] + CodeWordLimit]
-    BitCode* codewords = &codewordsArray[CodeWordLimit]; // allow negative indices, so quantized[i] is at codewords[quantized[i]]
+    BitCode codewordsArray[
+            2 * CodeWordLimit];          // note: quantized[i] is found at codewordsArray[quantized[i] + CodeWordLimit]
+    BitCode *codewords = &codewordsArray[CodeWordLimit]; // allow negative indices, so quantized[i] is at codewords[quantized[i]]
     uint8_t numBits = 1; // each codeword has at least one bit (value == 0 is undefined)
-    int32_t mask    = 1; // mask is always 2^numBits - 1, initial value 2^1-1 = 2-1 = 1
-    for (int16_t value = 1; value < CodeWordLimit; value++)
-    {
+    int32_t mask = 1; // mask is always 2^numBits - 1, initial value 2^1-1 = 2-1 = 1
+    for (int16_t value = 1; value < CodeWordLimit; value++) {
         // numBits = position of highest set bit (ignoring the sign)
         // mask    = (2^numBits) - 1
         if (value > mask) // one more bit ?
@@ -77,8 +75,9 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
             numBits++;
             mask = (mask << 1) | 1; // append a set bit
         }
-        codewords[-value] = BitCode(mask - value, numBits); // note that I use a negative index => codewords[-value] = codewordsArray[CodeWordLimit  value]
-        codewords[+value] = BitCode(       value, numBits);
+        codewords[-value] = BitCode(mask - value,
+                                    numBits); // note that I use a negative index => codewords[-value] = codewordsArray[CodeWordLimit  value]
+        codewords[+value] = BitCode(value, numBits);
     }
 
     // average color of the previous MCU
@@ -92,18 +91,21 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
                 auto column = mcuX;
                 auto row = (mcuY + deltaY > maxHeight) ? maxHeight : mcuY + deltaY;
                 for (auto deltaX = 0; deltaX < 8; ++deltaX) {
-                    auto pixelPos = row * (maxWidth+1) + column;
-                    column = (column < maxWidth) ? column + 1: column;
+                    auto pixelPos = row * (maxWidth + 1) + column;
+                    column = (column < maxWidth) ? column + 1 : column;
 
-                    Y[deltaY][deltaX] = static_cast<float>(yuvFrameBuffer->getYChannel()[pixelPos])-128;
-                    Cb[deltaY][deltaX] = static_cast<float>(yuvFrameBuffer->getCbChannel()[pixelPos])-128;
-                    Cr[deltaY][deltaX] = static_cast<float>(yuvFrameBuffer->getCrChannel()[pixelPos])-128;
+                    Y[deltaY][deltaX] = static_cast<float>(yuvFrameBuffer->getYChannel()[pixelPos]) - 128;
+                    Cb[deltaY][deltaX] = static_cast<float>(yuvFrameBuffer->getCbChannel()[pixelPos]) - 128;
+                    Cr[deltaY][deltaX] = static_cast<float>(yuvFrameBuffer->getCrChannel()[pixelPos]) - 128;
 
                 }
             }
-            lastYDC = encodeBlock(output, Y, _scaledLuminance, lastYDC, _huffmanLuminanceDC, _huffmanLuminanceAC, codewords);
-            lastCbDC = encodeBlock(output, Cb, _scaledChrominance, lastCbDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords);
-            lastCrDC = encodeBlock(output, Cr, _scaledChrominance, lastCrDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords);
+            lastYDC = encodeBlock(output, Y, _scaledLuminance, lastYDC, _huffmanLuminanceDC, _huffmanLuminanceAC,
+                                  codewords);
+            lastCbDC = encodeBlock(output, Cb, _scaledChrominance, lastCbDC, _huffmanChrominanceDC,
+                                   _huffmanChrominanceAC, codewords);
+            lastCrDC = encodeBlock(output, Cr, _scaledChrominance, lastCrDC, _huffmanChrominanceDC,
+                                   _huffmanChrominanceAC, codewords);
 
         } // end mcuX
     } // end mcuY
@@ -114,7 +116,7 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
     output.push_back(0xD9);
 }
 
-void MJPEGEncoderSerialImpl::start() {
+void MJPEGEncoderOpenCLImpl::start() {
     RawVideoReader videoReader(_arguments.input, _arguments.size);
     auto totalFrames = videoReader.getTotalFrames();
     const auto totalPixels = this->_cachedPaddingSize.height * this->_cachedPaddingSize.width;
@@ -175,15 +177,6 @@ void MJPEGEncoderSerialImpl::start() {
 
         auto currentTime = Utils::getCurrentTimestamp(frameNo + 1, videoReader.getTotalFrames(), _arguments.fps);
         auto currentTimeStr = Utils::formatTimestamp(currentTime);
-        /*
-        Utils::printProgress(
-                cout,
-                string("Time: ") +
-                Utils::formatTimestamp(currentTime) +
-                " / " +
-                totalTimeStr
-        );
-         */
         cout << "\u001B[A" << std::flush
              << "Time: " << Utils::formatTimestamp(currentTime) << " / " << totalTimeStr
              << endl;
@@ -197,6 +190,6 @@ void MJPEGEncoderSerialImpl::start() {
     delete[] paddedBuffer;
 }
 
-void MJPEGEncoderSerialImpl::finalize() {
+void MJPEGEncoderOpenCLImpl::finalize() {
 
 }
