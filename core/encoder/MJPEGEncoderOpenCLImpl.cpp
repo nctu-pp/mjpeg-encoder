@@ -15,109 +15,49 @@ MJPEGEncoderOpenCLImpl::MJPEGEncoderOpenCLImpl(const Arguments &arguments)
     this->_context = nullptr;
     this->_program = nullptr;
     this->_clCmdQueue = nullptr;
+    this->_maxWorkGroupSize = 0;
 
-    // generate huffmanLuminanceDC and huffmanLuminanceAC first
-    generateHuffmanTable(DcLuminanceCodesPerBitsize, DcLuminanceValues, _huffmanLuminanceDC);
-    generateHuffmanTable(AcLuminanceCodesPerBitsize, AcLuminanceValues, _huffmanLuminanceAC);
-    // generate huffmanChrominanceDC and huffmanChrominanceAC first
-    generateHuffmanTable(DcChrominanceCodesPerBitsize, DcChrominanceValues, _huffmanChrominanceDC);
-    generateHuffmanTable(AcChrominanceCodesPerBitsize, AcChrominanceValues, _huffmanChrominanceAC);
-    int quality = _arguments.quality;
-
-    quality = clamp(quality, 1, 100);
-    quality = quality < 50 ? 5000 / quality : 200 - quality * 2;
-
-    for (auto i = 0; i < 8 * 8; ++i) {
-        int luminance = (DefaultQuantLuminance[ZigZagInv[i]] * quality + 50) / 100;
-        int chrominance = (DefaultQuantChrominance[ZigZagInv[i]] * quality + 50) / 100;
-
-        // clamp to 1..255
-        _quantLuminance[i] = clamp(luminance, 1, 255);
-        _quantChrominance[i] = clamp(chrominance, 1, 255);
-    }
-
-    for (auto i = 0; i < 8 * 8; ++i) {
-        auto row = ZigZagInv[i] / 8; // same as ZigZagInv[i] >> 3
-        auto column = ZigZagInv[i] % 8; // same as ZigZagInv[i] &  7
-        auto factor = 1 / (AanScaleFactors[row] * AanScaleFactors[column] * 8);
-        _scaledLuminance[ZigZagInv[i]] = factor / _quantLuminance[i];
-        _scaledChrominance[ZigZagInv[i]] = factor / _quantChrominance[i];
+    if (_writeIntermediateResult) {
+        writeBuffer(
+                _arguments.tmpDir + "/yuv444.raw",
+                nullptr, 0
+        );
     }
 }
 
 void MJPEGEncoderOpenCLImpl::encodeJpeg(
-        color::RGBA *paddedData, int length,
+        color::RGBA *originalData, int length,
         vector<char> &output,
         void **sharedData
 ) {
-    auto yuvFrameBuffer = static_cast<color::YCbCr444 *>(sharedData[0]);
-    transformColorSpace(paddedData, *yuvFrameBuffer, this->_cachedPaddingSize);
+    unsigned int argc = 0;
+    auto dRgbaBuffer = (cl::Buffer *) sharedData[argc++];
 
-    _bitBuffer.init();
-    writeJFIFHeader(output);
+    auto dYChannelBuffer = (cl::Buffer *) sharedData[argc++];
+    auto dCbChannelBuffer = (cl::Buffer *) sharedData[argc++];
+    auto dCrChannelBuffer = (cl::Buffer *) sharedData[argc++];
 
-    writeQuantizationTable(output, _quantLuminance, _quantChrominance);
+    auto clPaddingAndTransformColorSpace = (cl::Kernel *) sharedData[argc++];
+    auto totalPixels = *((size_t *) sharedData[argc++]);
+    auto dimPtr = (cl::NDRange *) sharedData[argc++];
 
-    // write infos: SOF0 - start of frame
-    writeImageInfos(output);
+    cl_int err = 0;
 
-    writeHuffmanTable(output);
+    // copy rgba data to kernel
+    err = this->_clCmdQueue->enqueueWriteBuffer(*dRgbaBuffer, CL_TRUE, 0, length, (char *) originalData);
+    this->dieIfClError(err);
 
-    writeScanInfo(output);
+    err = this->_clCmdQueue->enqueueNDRangeKernel(
+            *clPaddingAndTransformColorSpace,
+            cl::NullRange,
+            *dimPtr,
+            cl::NullRange
+    );
 
-    // precompute JPEG codewords for quantized DCT
-    BitCode codewordsArray[
-            2 * CodeWordLimit];          // note: quantized[i] is found at codewordsArray[quantized[i] + CodeWordLimit]
-    BitCode *codewords = &codewordsArray[CodeWordLimit]; // allow negative indices, so quantized[i] is at codewords[quantized[i]]
-    uint8_t numBits = 1; // each codeword has at least one bit (value == 0 is undefined)
-    int32_t mask = 1; // mask is always 2^numBits - 1, initial value 2^1-1 = 2-1 = 1
-    for (int16_t value = 1; value < CodeWordLimit; value++) {
-        // numBits = position of highest set bit (ignoring the sign)
-        // mask    = (2^numBits) - 1
-        if (value > mask) // one more bit ?
-        {
-            numBits++;
-            mask = (mask << 1) | 1; // append a set bit
-        }
-        codewords[-value] = BitCode(mask - value,
-                                    numBits); // note that I use a negative index => codewords[-value] = codewordsArray[CodeWordLimit  value]
-        codewords[+value] = BitCode(value, numBits);
-    }
+    this->dieIfClError(err);
 
-    // average color of the previous MCU
-    int16_t lastYDC = 0, lastCbDC = 0, lastCrDC = 0;
-    auto maxWidth = (this->_cachedPaddingSize).width - 1;
-    auto maxHeight = (this->_cachedPaddingSize).height - 1;
-    float Y[8][8], Cb[8][8], Cr[8][8];
-    for (auto mcuY = 0; mcuY < (this->_cachedPaddingSize).height; mcuY += 8) { // each step is either 8 or 16 (=mcuSize)
-        for (auto mcuX = 0; mcuX < (this->_cachedPaddingSize).width; mcuX += 8) {
-            for (auto deltaY = 0; deltaY < 8; ++deltaY) {
-                auto column = mcuX;
-                auto row = (mcuY + deltaY > maxHeight) ? maxHeight : mcuY + deltaY;
-                for (auto deltaX = 0; deltaX < 8; ++deltaX) {
-                    auto pixelPos = row * (maxWidth + 1) + column;
-                    column = (column < maxWidth) ? column + 1 : column;
 
-                    Y[deltaY][deltaX] = static_cast<float>(yuvFrameBuffer->getYChannel()[pixelPos]) - 128;
-                    Cb[deltaY][deltaX] = static_cast<float>(yuvFrameBuffer->getCbChannel()[pixelPos]) - 128;
-                    Cr[deltaY][deltaX] = static_cast<float>(yuvFrameBuffer->getCrChannel()[pixelPos]) - 128;
-
-                }
-            }
-            lastYDC = encodeBlock(output, Y, _scaledLuminance, lastYDC, _huffmanLuminanceDC, _huffmanLuminanceAC,
-                                  codewords);
-            lastCbDC = encodeBlock(output, Cb, _scaledChrominance, lastCbDC, _huffmanChrominanceDC,
-                                   _huffmanChrominanceAC, codewords);
-            lastCrDC = encodeBlock(output, Cr, _scaledChrominance, lastCrDC, _huffmanChrominanceDC,
-                                   _huffmanChrominanceAC, codewords);
-
-        } // end mcuX
-    } // end mcuY
-
-    writeBitCode(output, BitCode(0x7F, 7), _bitBuffer);
-
-    output.push_back(0xFF);
-    output.push_back(0xD9);
+    // TODO: convert to jpeg in opencl
 }
 
 void MJPEGEncoderOpenCLImpl::start() {
@@ -127,11 +67,21 @@ void MJPEGEncoderOpenCLImpl::start() {
     auto totalFrames = videoReader.getTotalFrames();
     const auto totalPixels = this->_cachedPaddingSize.height * this->_cachedPaddingSize.width;
 
-    size_t paddedRgbFrameSize = totalPixels * RawVideoReader::PIXEL_BYTES;
+    size_t originalRgbFrameSize = videoReader.getPerFrameSize();
 
-    auto buffer = new char[videoReader.getPerFrameSize()];
-    auto paddedBuffer = new char[paddedRgbFrameSize];
-    auto paddedRgbaPtr = (color::RGBA *) paddedBuffer;
+    auto maxBatchFrames = this->_maxWorkItems[2];
+    auto extraNeedBatchPerFrameX = 1;
+    auto extraNeedBatchPerFrameY = 1;
+    do {
+        extraNeedBatchPerFrameX = ((_cachedPaddingSize.width / this->_maxWorkItems[0]) + 1);
+        extraNeedBatchPerFrameY = ((_cachedPaddingSize.height / this->_maxWorkItems[1]) + 1);
+
+        maxBatchFrames /= (extraNeedBatchPerFrameX * extraNeedBatchPerFrameY);
+
+        assert(this->_maxWorkItems[0] == this->_maxWorkItems[1]);
+    } while (false);
+
+    auto buffer = new char[originalRgbFrameSize * maxBatchFrames];
     AVIOutputStream aviOutputStream(_arguments.output);
 
     (&aviOutputStream)
@@ -139,17 +89,10 @@ void MJPEGEncoderOpenCLImpl::start() {
             ->setSize(_arguments.size)
             ->setTotalFrames(videoReader.getTotalFrames());
 
-    color::YCbCr444 yuvFrameBuffer(this->_cachedPaddingSize);
-
     // share outputBuffer to reduce re-alloc
     vector<char> outputBuffer;
 
     aviOutputStream.start();
-
-    void *passData[] = {
-            &yuvFrameBuffer,
-            nullptr,
-    };
 
     auto totalSeconds = Utils::getCurrentTimestamp(
             videoReader.getTotalFrames(), videoReader.getTotalFrames(),
@@ -158,30 +101,118 @@ void MJPEGEncoderOpenCLImpl::start() {
     auto totalTimeStr = Utils::formatTimestamp(totalSeconds);
 
     cout << endl;
-    for (size_t frameNo = 0; frameNo < totalFrames; frameNo++) {
-        int readFrameNo = videoReader.readFrame(buffer, 1);
-        doPadding(
-                buffer, _arguments.size,
-                paddedBuffer, this->_cachedPaddingSize
-        );
 
+    // init kernel function parameters
+    vector<int> paddingKernelArgs;
+    do {
+        paddingKernelArgs.push_back(_arguments.size.width);
+        paddingKernelArgs.push_back(_arguments.size.height);
+
+        paddingKernelArgs.push_back(_cachedPaddingSize.width);
+        paddingKernelArgs.push_back(_cachedPaddingSize.height);
+
+        paddingKernelArgs.push_back(_maxWorkItems[0]);
+        paddingKernelArgs.push_back(_maxWorkItems[2]);
+
+        paddingKernelArgs.push_back(extraNeedBatchPerFrameX);
+        paddingKernelArgs.push_back(extraNeedBatchPerFrameY);
+    } while (false);
+
+    auto batchDataSizeOneChannel = totalPixels * maxBatchFrames;
+    auto hYChannel = new char[batchDataSizeOneChannel];
+    auto hCbChannel = new char[batchDataSizeOneChannel];
+    auto hCrChannel = new char[batchDataSizeOneChannel];
+
+    // init opencl buffer
+    cl::Buffer dRgbaBuffer(*_context, CL_MEM_READ_ONLY, originalRgbFrameSize * maxBatchFrames);
+    cl::Buffer dYChannelBuffer(*_context, CL_MEM_READ_WRITE, sizeof(char) * batchDataSizeOneChannel);
+    cl::Buffer dCbChannelBuffer(*_context, CL_MEM_READ_WRITE, sizeof(char) * batchDataSizeOneChannel);
+    cl::Buffer dCrChannelBuffer(*_context, CL_MEM_READ_WRITE, sizeof(char) * batchDataSizeOneChannel);
+    cl::Buffer dOtherArgs(
+            *_context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
+            sizeof(int) * paddingKernelArgs.size(),
+            paddingKernelArgs.data()
+    );
+
+    // cl program
+    cl::Kernel clPaddingAndTransformColorSpace(*_program, "paddingAndTransformColorSpace");
+    unsigned int transformArgc = 0;
+    clPaddingAndTransformColorSpace.setArg(transformArgc++, dRgbaBuffer);
+
+    clPaddingAndTransformColorSpace.setArg(transformArgc++, dYChannelBuffer);
+    clPaddingAndTransformColorSpace.setArg(transformArgc++, dCbChannelBuffer);
+    clPaddingAndTransformColorSpace.setArg(transformArgc++, dCrChannelBuffer);
+    clPaddingAndTransformColorSpace.setArg(transformArgc++, dOtherArgs);
+
+    auto copiedTotalPixels = totalPixels;
+    auto groupWidth = std::min((unsigned long) _cachedPaddingSize.width, _maxWorkItems[0]);
+    auto groupHeight = std::min((unsigned long) _cachedPaddingSize.height, _maxWorkItems[1]);
+
+    void *passData[] = {
+            &dRgbaBuffer,
+
+            &dYChannelBuffer,
+            &dCbChannelBuffer,
+            &dCrChannelBuffer,
+
+            &clPaddingAndTransformColorSpace,
+
+            &copiedTotalPixels,
+            nullptr, // 6
+            nullptr,
+    };
+
+    string yuvDataTmpPath = _arguments.tmpDir + "/yuv444.raw";
+    for (size_t frameNo = 0; frameNo < totalFrames; frameNo += maxBatchFrames) {
+        int readFrameCnt = videoReader.readFrame(buffer, maxBatchFrames);
         outputBuffer.clear();
+
+        cl::NDRange globalSize(groupWidth, groupHeight, maxBatchFrames);
+
+        passData[6] = &globalSize;
+
         this->encodeJpeg(
-                paddedRgbaPtr, totalPixels,
+                (color::RGBA *) buffer, originalRgbFrameSize * readFrameCnt,
                 outputBuffer,
                 passData
         );
 
         if (_writeIntermediateResult) {
-            writeBuffer(
-                    _arguments.tmpDir + "/output-" + to_string(frameNo) + ".jpg",
-                    outputBuffer.data(), outputBuffer.size()
-            );
+            size_t dataSize = readFrameCnt * totalPixels * sizeof(char);
+            memset(hYChannel, '\0', dataSize);
+            memset(hCbChannel, '\0', dataSize);
+            memset(hCrChannel, '\0', dataSize);
+            _clCmdQueue->enqueueReadBuffer(dYChannelBuffer, CL_TRUE,
+                                           0, dataSize,
+                                           hYChannel);
+            _clCmdQueue->enqueueReadBuffer(dCbChannelBuffer, CL_TRUE,
+                                           0, dataSize,
+                                           hCbChannel);
+            _clCmdQueue->enqueueReadBuffer(dCrChannelBuffer, CL_TRUE,
+                                           0, dataSize,
+                                           hCrChannel);
+
+            for (auto j = 0; j < readFrameCnt; j++) {
+                auto offset = totalPixels * j;
+                writeBuffer(yuvDataTmpPath,
+                            hYChannel + offset, totalPixels,
+                            true
+                );
+                writeBuffer(yuvDataTmpPath,
+                            hCbChannel + offset, totalPixels,
+                            true
+                );
+                writeBuffer(yuvDataTmpPath,
+                            hCrChannel + offset, totalPixels,
+                            true
+                );
+            }
         }
 
         aviOutputStream.writeFrame(outputBuffer.data(), outputBuffer.size());
 
-        auto currentTime = Utils::getCurrentTimestamp(frameNo + 1, videoReader.getTotalFrames(), _arguments.fps);
+        auto currentTime = Utils::getCurrentTimestamp(frameNo + readFrameCnt - 1, videoReader.getTotalFrames(),
+                                                      _arguments.fps);
         auto currentTimeStr = Utils::formatTimestamp(currentTime);
         cout << "\u001B[A" << std::flush
              << "Time: " << Utils::formatTimestamp(currentTime) << " / " << totalTimeStr
@@ -192,8 +223,11 @@ void MJPEGEncoderOpenCLImpl::start() {
     cout << endl
          << "Video encoded, output file located at " << _arguments.output
          << endl;
+
+    delete[] hYChannel;
+    delete[] hCbChannel;
+    delete[] hCrChannel;
     delete[] buffer;
-    delete[] paddedBuffer;
 }
 
 void MJPEGEncoderOpenCLImpl::finalize() {
@@ -247,6 +281,9 @@ void MJPEGEncoderOpenCLImpl::bootstrap() {
          << "] on platform [" << platformName
          << "]." << endl;
 
+    _maxWorkItems = firstMatchDevice->getInfo<CL_DEVICE_MAX_WORK_ITEM_SIZES>();
+    _maxWorkGroupSize = firstMatchDevice->getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
+
     _context = new cl::Context(*_device);
 
     string kernelCode = readClKernelFile("jpeg-encoder.cl");
@@ -259,6 +296,8 @@ void MJPEGEncoderOpenCLImpl::bootstrap() {
         cerr << buildInfo << endl;
     }
     this->dieIfClError(buildRet, __LINE__);
+
+    _clCmdQueue = new cl::CommandQueue(*_context, *_device);
 }
 
 MJPEGEncoderOpenCLImpl::~MJPEGEncoderOpenCLImpl() {

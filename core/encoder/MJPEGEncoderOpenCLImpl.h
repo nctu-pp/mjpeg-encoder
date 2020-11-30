@@ -17,14 +17,14 @@ namespace core::encoder {
         ~MJPEGEncoderOpenCLImpl();
 
     protected:
-        bool _writeIntermediateResult = false;
+        bool _writeIntermediateResult = true;
 
         void start() override;
 
         void finalize() override;
 
         void encodeJpeg(
-                color::RGBA *paddedData, int length,
+                color::RGBA *originalData, int length,
                 vector<char> &output,
                 void **sharedData
         ) override;
@@ -35,6 +35,8 @@ namespace core::encoder {
         cl::Context * _context;
         cl::Program* _program;
         cl::CommandQueue* _clCmdQueue;
+        cl_int _maxWorkGroupSize;
+        vector<cl_ulong> _maxWorkItems;
 
         void dieIfClError(cl_int err, int line = 0);
 
