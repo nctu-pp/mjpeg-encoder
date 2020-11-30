@@ -13,6 +13,7 @@ MJPEGEncoderOpenCLImpl::MJPEGEncoderOpenCLImpl(const Arguments &arguments)
         : AbstractMJPEGEncoder(arguments) {
     this->_device = nullptr;
     this->_context = nullptr;
+    this->_program = nullptr;
     this->_clCmdQueue = nullptr;
 
     // generate huffmanLuminanceDC and huffmanLuminanceAC first
@@ -248,6 +249,16 @@ void MJPEGEncoderOpenCLImpl::bootstrap() {
 
     _context = new cl::Context(*_device);
 
+    string kernelCode = readClKernelFile("jpeg-encoder.cl");
+
+    _program = new cl::Program(*_context, kernelCode);
+
+    auto buildRet = _program->build(devices);
+    if (buildRet == CL_BUILD_PROGRAM_FAILURE) {
+        auto buildInfo = _program->getBuildInfo<CL_PROGRAM_BUILD_LOG>(*_device);
+        cerr << buildInfo << endl;
+    }
+    this->dieIfClError(buildRet, __LINE__);
 }
 
 MJPEGEncoderOpenCLImpl::~MJPEGEncoderOpenCLImpl() {
@@ -264,6 +275,9 @@ void MJPEGEncoderOpenCLImpl::dieIfClError(cl_int err, int line) {
     if (err != CL_SUCCESS) {
         string msg = "OpenCL Error: ";
         msg += to_string(err);
+        msg += " (";
+        msg += getClError(err);
+        msg += ")";
 
         if (line) {
             msg += ", line: ";
@@ -271,4 +285,100 @@ void MJPEGEncoderOpenCLImpl::dieIfClError(cl_int err, int line) {
         }
         throw runtime_error(msg);
     }
+}
+
+string MJPEGEncoderOpenCLImpl::readClKernelFile(const char *path) const {
+    std::ifstream file;
+
+    string searchPaths[] = {
+            "../opencl-kernel/",
+            "./opencl-kernel/",
+            "../",
+            "./",
+    };
+    for (string &prefix : searchPaths) {
+        file.open(prefix + path, std::ios::binary | std::ios::ate);
+        if (file.good())
+            break;
+    }
+
+    if (!file.good()) {
+        throw runtime_error("cannot open kernel file: " + string(path));
+    }
+
+    size_t size = file.tellg();
+    file.seekg(0, std::ios::beg);
+    std::string buffer(size + 1, '\0');
+
+    if (!file.read(buffer.data(), size)) {
+        throw runtime_error((string("Failed to read file ") + path).c_str());
+    }
+    return buffer;
+}
+
+const char *MJPEGEncoderOpenCLImpl::getClError(cl_int err) {
+#define CaseReturnString(x) case x: return #x;
+    switch (err) {
+        CaseReturnString(CL_SUCCESS)
+        CaseReturnString(CL_DEVICE_NOT_FOUND)
+        CaseReturnString(CL_DEVICE_NOT_AVAILABLE)
+        CaseReturnString(CL_COMPILER_NOT_AVAILABLE)
+        CaseReturnString(CL_MEM_OBJECT_ALLOCATION_FAILURE)
+        CaseReturnString(CL_OUT_OF_RESOURCES)
+        CaseReturnString(CL_OUT_OF_HOST_MEMORY)
+        CaseReturnString(CL_PROFILING_INFO_NOT_AVAILABLE)
+        CaseReturnString(CL_MEM_COPY_OVERLAP)
+        CaseReturnString(CL_IMAGE_FORMAT_MISMATCH)
+        CaseReturnString(CL_IMAGE_FORMAT_NOT_SUPPORTED)
+        CaseReturnString(CL_BUILD_PROGRAM_FAILURE)
+        CaseReturnString(CL_MAP_FAILURE)
+        CaseReturnString(CL_MISALIGNED_SUB_BUFFER_OFFSET)
+        CaseReturnString(CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST)
+        CaseReturnString(CL_COMPILE_PROGRAM_FAILURE)
+        CaseReturnString(CL_LINKER_NOT_AVAILABLE)
+        CaseReturnString(CL_LINK_PROGRAM_FAILURE)
+        CaseReturnString(CL_DEVICE_PARTITION_FAILED)
+        CaseReturnString(CL_KERNEL_ARG_INFO_NOT_AVAILABLE)
+        CaseReturnString(CL_INVALID_VALUE)
+        CaseReturnString(CL_INVALID_DEVICE_TYPE)
+        CaseReturnString(CL_INVALID_PLATFORM)
+        CaseReturnString(CL_INVALID_DEVICE)
+        CaseReturnString(CL_INVALID_CONTEXT)
+        CaseReturnString(CL_INVALID_QUEUE_PROPERTIES)
+        CaseReturnString(CL_INVALID_COMMAND_QUEUE)
+        CaseReturnString(CL_INVALID_HOST_PTR)
+        CaseReturnString(CL_INVALID_MEM_OBJECT)
+        CaseReturnString(CL_INVALID_IMAGE_FORMAT_DESCRIPTOR)
+        CaseReturnString(CL_INVALID_IMAGE_SIZE)
+        CaseReturnString(CL_INVALID_SAMPLER)
+        CaseReturnString(CL_INVALID_BINARY)
+        CaseReturnString(CL_INVALID_BUILD_OPTIONS)
+        CaseReturnString(CL_INVALID_PROGRAM)
+        CaseReturnString(CL_INVALID_PROGRAM_EXECUTABLE)
+        CaseReturnString(CL_INVALID_KERNEL_NAME)
+        CaseReturnString(CL_INVALID_KERNEL_DEFINITION)
+        CaseReturnString(CL_INVALID_KERNEL)
+        CaseReturnString(CL_INVALID_ARG_INDEX)
+        CaseReturnString(CL_INVALID_ARG_VALUE)
+        CaseReturnString(CL_INVALID_ARG_SIZE)
+        CaseReturnString(CL_INVALID_KERNEL_ARGS)
+        CaseReturnString(CL_INVALID_WORK_DIMENSION)
+        CaseReturnString(CL_INVALID_WORK_GROUP_SIZE)
+        CaseReturnString(CL_INVALID_WORK_ITEM_SIZE)
+        CaseReturnString(CL_INVALID_GLOBAL_OFFSET)
+        CaseReturnString(CL_INVALID_EVENT_WAIT_LIST)
+        CaseReturnString(CL_INVALID_EVENT)
+        CaseReturnString(CL_INVALID_OPERATION)
+        CaseReturnString(CL_INVALID_GL_OBJECT)
+        CaseReturnString(CL_INVALID_BUFFER_SIZE)
+        CaseReturnString(CL_INVALID_MIP_LEVEL)
+        CaseReturnString(CL_INVALID_GLOBAL_WORK_SIZE)
+        CaseReturnString(CL_INVALID_PROPERTY)
+        CaseReturnString(CL_INVALID_IMAGE_DESCRIPTOR)
+        CaseReturnString(CL_INVALID_COMPILER_OPTIONS)
+        CaseReturnString(CL_INVALID_LINKER_OPTIONS)
+        CaseReturnString(CL_INVALID_DEVICE_PARTITION_COUNT)
+    }
+
+    return "Unknown Error";
 }

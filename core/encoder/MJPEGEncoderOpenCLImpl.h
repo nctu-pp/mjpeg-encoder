@@ -8,6 +8,7 @@
 #include "../Utils.h"
 #include <cassert>
 #include <CL/cl.hpp>
+#include <sstream>
 
 namespace core::encoder {
     class MJPEGEncoderOpenCLImpl : public AbstractMJPEGEncoder {
@@ -32,8 +33,13 @@ namespace core::encoder {
         void bootstrap();
         cl::Device* _device;
         cl::Context * _context;
+        cl::Program* _program;
         cl::CommandQueue* _clCmdQueue;
 
         void dieIfClError(cl_int err, int line = 0);
+
+        string readClKernelFile(const char* path) const;
+
+        static const char* getClError(cl_int err);
     };
 }
