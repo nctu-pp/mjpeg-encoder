@@ -12,6 +12,7 @@ using namespace core::encoder;
 core::encoder::AbstractMJPEGEncoder::AbstractMJPEGEncoder(const Arguments &arguments) {
     this->_arguments = arguments;
     calcPaddingSize();
+    initJpegTable();
 }
 
 shared_ptr<AbstractMJPEGEncoder> core::encoder::AbstractMJPEGEncoder::getInstance(
@@ -354,7 +355,7 @@ void AbstractMJPEGEncoder::writeQuantizationTable(
 }
 
 void AbstractMJPEGEncoder::writeHuffmanTable(
-        vector<char>& output         
+        vector<char>& output
 ) {
     addMarker(output, 0xC4, 2+208+208);
     output.push_back(0x00);
@@ -368,7 +369,7 @@ void AbstractMJPEGEncoder::writeHuffmanTable(
     for (auto i = 0; i < 12; ++i) output.push_back(DcChrominanceValues[i]);
     output.push_back(0x11);
     for (auto i = 0; i < 16; ++i) output.push_back(AcChrominanceCodesPerBitsize[i]);
-    for (auto i = 0; i < 162; ++i) output.push_back(AcChrominanceValues[i]);    
+    for (auto i = 0; i < 162; ++i) output.push_back(AcChrominanceValues[i]);
 }
 
 void AbstractMJPEGEncoder::writeImageInfos(
@@ -376,7 +377,7 @@ void AbstractMJPEGEncoder::writeImageInfos(
 ) {
     addMarker(output, 0xC0, 2+6+3*3);
     output.push_back(0x08);
-    
+
     output.push_back(this->_arguments.size.height >> 8);
     output.push_back(this->_arguments.size.height & 0xFF);
     output.push_back(this->_arguments.size.width >> 8);
@@ -401,4 +402,34 @@ void AbstractMJPEGEncoder::writeScanInfo(
     }
     static const uint8_t Spectral[3] = { 0, 63, 0 }; // spectral selection: must be from 0 to 63; successive approximation must be 0
     for (auto i = 0; i < 3; ++i) output.push_back(Spectral[i]);
+}
+
+void AbstractMJPEGEncoder::initJpegTable() {
+    // generate huffmanLuminanceDC and huffmanLuminanceAC first
+    generateHuffmanTable(DcLuminanceCodesPerBitsize, DcLuminanceValues, _huffmanLuminanceDC);
+    generateHuffmanTable(AcLuminanceCodesPerBitsize, AcLuminanceValues, _huffmanLuminanceAC);
+    // generate huffmanChrominanceDC and huffmanChrominanceAC first
+    generateHuffmanTable(DcChrominanceCodesPerBitsize, DcChrominanceValues, _huffmanChrominanceDC);
+    generateHuffmanTable(AcChrominanceCodesPerBitsize, AcChrominanceValues, _huffmanChrominanceAC);
+    int quality = _arguments.quality;
+
+    quality = clamp(quality, 1, 100);
+    quality = quality < 50 ? 5000 / quality : 200 - quality * 2;
+
+    for (auto i = 0; i < 8 * 8; ++i) {
+        int luminance = (DefaultQuantLuminance[ZigZagInv[i]] * quality + 50) / 100;
+        int chrominance = (DefaultQuantChrominance[ZigZagInv[i]] * quality + 50) / 100;
+
+        // clamp to 1..255
+        _quantLuminance[i] = clamp(luminance, 1, 255);
+        _quantChrominance[i] = clamp(chrominance, 1, 255);
+    }
+
+    for (auto i = 0; i < 8 * 8; ++i) {
+        auto row = ZigZagInv[i] / 8; // same as ZigZagInv[i] >> 3
+        auto column = ZigZagInv[i] % 8; // same as ZigZagInv[i] &  7
+        auto factor = 1 / (AanScaleFactors[row] * AanScaleFactors[column] * 8);
+        _scaledLuminance[ZigZagInv[i]] = factor / _quantLuminance[i];
+        _scaledChrominance[ZigZagInv[i]] = factor / _quantChrominance[i];
+    }
 }

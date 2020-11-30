@@ -12,35 +12,6 @@ using namespace core::encoder;
 
 MJPEGEncoderSerialImpl::MJPEGEncoderSerialImpl(const Arguments &arguments)
         : AbstractMJPEGEncoder(arguments) {
-    // generate huffmanLuminanceDC and huffmanLuminanceAC first
-    generateHuffmanTable(DcLuminanceCodesPerBitsize, DcLuminanceValues, _huffmanLuminanceDC);
-    generateHuffmanTable(AcLuminanceCodesPerBitsize, AcLuminanceValues, _huffmanLuminanceAC);
-    // generate huffmanChrominanceDC and huffmanChrominanceAC first
-    generateHuffmanTable(DcChrominanceCodesPerBitsize, DcChrominanceValues, _huffmanChrominanceDC);
-    generateHuffmanTable(AcChrominanceCodesPerBitsize, AcChrominanceValues, _huffmanChrominanceAC);
-    int quality = _arguments.quality;
-
-    quality = clamp(quality, 1, 100);
-    quality = quality < 50 ? 5000 / quality : 200 - quality * 2;
-
-    for (auto i = 0; i < 8*8; ++i)
-    {
-        int luminance   = (DefaultQuantLuminance  [ZigZagInv[i]] * quality + 50) / 100;
-        int chrominance = (DefaultQuantChrominance[ZigZagInv[i]] * quality + 50) / 100;
-
-        // clamp to 1..255
-        _quantLuminance  [i] = clamp(luminance,   1, 255);
-        _quantChrominance[i] = clamp(chrominance, 1, 255);
-    }
-
-    for (auto i = 0; i < 8*8; ++i)
-    {
-        auto row    = ZigZagInv[i] / 8; // same as ZigZagInv[i] >> 3
-        auto column = ZigZagInv[i] % 8; // same as ZigZagInv[i] &  7
-        auto factor = 1 / (AanScaleFactors[row] * AanScaleFactors[column] * 8);
-        _scaledLuminance  [ZigZagInv[i]] = factor / _quantLuminance  [i];
-        _scaledChrominance[ZigZagInv[i]] = factor / _quantChrominance[i];
-    }
 }
 
 void MJPEGEncoderSerialImpl::encodeJpeg(

@@ -29,6 +29,8 @@ namespace core::encoder {
     protected:
         explicit AbstractMJPEGEncoder(const Arguments &arguments);
 
+        void initJpegTable();
+
         virtual void encodeJpeg(
                 color::RGBA *paddedData, int length,
                 vector<char> &output,
