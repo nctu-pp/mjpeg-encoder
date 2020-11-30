@@ -27,13 +27,15 @@ __kernel void paddingAndTransformColorSpace(
     int frameId = batch / extraNeedBatchPerFrame;
     int batchNo = batch % extraNeedBatchPerFrame;
     int blockIdX = batchNo % extraNeedBatchPerFrameX;
-    int blockIdY = batchNo / extraNeedBatchPerFrameY;
-
-    posX = batchOffset * blockIdX + _x % batchOffset;
-    posY = batchOffset * blockIdY + _y % batchOffset;
+    int blockIdY = batchNo / extraNeedBatchPerFrameX;
+    posX = batchOffset * blockIdX + _x;
+    posY = batchOffset * blockIdY + _y;
 
     size_t srcOffset;
     size_t dstOffset = posY * dstWidth + posX;
+
+    if (posX >= dstWidth || posY >= dstHeight)
+        return;
 
     if (posX >= srcWidth) {
         srcPosX = srcWidth - 1;
@@ -48,10 +50,6 @@ __kernel void paddingAndTransformColorSpace(
     }
 
     srcOffset = srcPosY * srcWidth + srcPosX;
-
-    if (dstOffset >= dstWidth * dstHeight)
-        return;
-
     srcOffset += frameId * srcWidth * srcHeight;
     dstOffset += frameId * dstWidth * dstHeight;
 
