@@ -81,6 +81,11 @@ namespace model {
         OpenCL,
     } ImplKind;
 
+    typedef enum CLDevice_e {
+        CPU,
+        GPU,
+    } CLDevice;
+
     typedef struct Arguments_s {
         string input;
         string output;
@@ -90,9 +95,12 @@ namespace model {
         int quality = 0;
         int numThreads = 0;
         ImplKind kind = Serial;
+        CLDevice device = CPU;
     } Arguments;
 
     ImplKind parseImplKind(const string &str);
+
+    CLDevice parseCLDevice(const string &str);
 
     // under struct is for avi container
     typedef uint32_t DWORD;

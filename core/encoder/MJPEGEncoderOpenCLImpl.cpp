@@ -9,9 +9,12 @@ using namespace std;
 using namespace core;
 using namespace core::encoder;
 
-
 MJPEGEncoderOpenCLImpl::MJPEGEncoderOpenCLImpl(const Arguments &arguments)
         : AbstractMJPEGEncoder(arguments) {
+    this->_device = nullptr;
+    this->_context = nullptr;
+    this->_clCmdQueue = nullptr;
+
     // generate huffmanLuminanceDC and huffmanLuminanceAC first
     generateHuffmanTable(DcLuminanceCodesPerBitsize, DcLuminanceValues, _huffmanLuminanceDC);
     generateHuffmanTable(AcLuminanceCodesPerBitsize, AcLuminanceValues, _huffmanLuminanceAC);
@@ -117,6 +120,8 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
 }
 
 void MJPEGEncoderOpenCLImpl::start() {
+    this->bootstrap();
+
     RawVideoReader videoReader(_arguments.input, _arguments.size);
     auto totalFrames = videoReader.getTotalFrames();
     const auto totalPixels = this->_cachedPaddingSize.height * this->_cachedPaddingSize.width;
@@ -191,5 +196,79 @@ void MJPEGEncoderOpenCLImpl::start() {
 }
 
 void MJPEGEncoderOpenCLImpl::finalize() {
+    _clCmdQueue->finish();
+}
 
+void MJPEGEncoderOpenCLImpl::bootstrap() {
+    vector<cl::Platform> platforms;
+    vector<cl::Device> devices;
+    cl::Platform::get(&platforms);
+    if (platforms.empty()) {
+        throw runtime_error("Cannot found any OpenCL platform");
+    }
+
+    cout << "Found " << platforms.size() << " platforms" << endl;
+
+    cl::Device *firstMatchDevice = nullptr;
+
+    cl_int deviceType = CL_DEVICE_TYPE_CPU;
+    switch (this->_arguments.device) {
+        case GPU:
+            deviceType = CL_DEVICE_TYPE_GPU;
+            break;
+        case CPU:
+            deviceType = CL_DEVICE_TYPE_CPU;
+            break;
+
+        default:
+            deviceType = CL_DEVICE_TYPE_ALL;
+            break;
+    }
+
+    string platformName;
+    for (auto &p : platforms) {
+        platformName = p.getInfo<CL_PLATFORM_NAME>(nullptr);
+        p.getDevices(deviceType, &devices);
+
+        if (!devices.empty()) {
+            firstMatchDevice = new cl::Device(devices[0]);
+            break;
+        }
+    }
+
+    if (!firstMatchDevice) {
+        throw runtime_error("Cannot found any OpenCL device.");
+    }
+
+    _device = firstMatchDevice;
+    cout << "Using device ["
+         << firstMatchDevice->getInfo<CL_DEVICE_NAME>()
+         << "] on platform [" << platformName
+         << "]." << endl;
+
+    _context = new cl::Context(*_device);
+
+}
+
+MJPEGEncoderOpenCLImpl::~MJPEGEncoderOpenCLImpl() {
+    delete _clCmdQueue;
+    delete _context;
+    delete _device;
+
+    _clCmdQueue = nullptr;
+    _context = nullptr;
+    _device = nullptr;
+}
+
+void MJPEGEncoderOpenCLImpl::dieIfClError(cl_int err, int line) {
+    if (err != CL_SUCCESS) {
+        string msg = "OpenCL Error: ";
+        msg += to_string(err);
+
+        if (line) {
+            msg += ", line: ";
+            msg += to_string(line);
+        }
+        throw runtime_error(msg);
+    }
 }

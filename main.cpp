@@ -20,6 +20,7 @@ void showHelp(char *const exeName) {
             << "\t-t --threads <number>\tUse number threads." << endl
             << "\t-k --kind <serial|openmp|opencl>\tSelect implementation, default is serial." << endl
             << "\t-T --temp-dir <path>\tTemp dir, default is system temp dir." << endl
+            << "\t-d --device <cpu|gpu>, default is cpu." << endl
             << "\t-h --help\tShow usage." << endl;
 }
 
@@ -47,10 +48,11 @@ int main(int argc, char *argv[]) {
                 {"threads",  required_argument, nullptr, 't'},
                 {"temp-dir", required_argument, nullptr, 'T'},
                 {"kind",     required_argument, nullptr, 'k'},
+                {"device",     required_argument, nullptr, 'd'},
                 {"help",     no_argument,       nullptr, 'h'},
         };
         char opt;
-        while ((opt = (char) getopt_long(argc, argv, ":i:s:r:o:t:T:q:k:h?", long_options, nullptr)) != EOF) {
+        while ((opt = (char) getopt_long(argc, argv, ":i:s:r:o:t:T:q:k:d:h?", long_options, nullptr)) != EOF) {
             switch (opt) {
                 case 'i':
                     arguments.input = string(optarg);
@@ -76,6 +78,9 @@ int main(int argc, char *argv[]) {
                     break;
                 case 'k':
                     arguments.kind = model::parseImplKind(optarg);
+                    break;
+                case 'd':
+                    arguments.device = model::parseCLDevice(optarg);
                     break;
                 case ':':
                     /* missing option argument 参数缺失*/

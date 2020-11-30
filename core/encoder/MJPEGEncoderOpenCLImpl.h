@@ -7,11 +7,13 @@
 #include "AbstractMJPEGEncoder.h"
 #include "../Utils.h"
 #include <cassert>
+#include <CL/cl.hpp>
 
 namespace core::encoder {
     class MJPEGEncoderOpenCLImpl : public AbstractMJPEGEncoder {
     public:
         explicit MJPEGEncoderOpenCLImpl(const Arguments &arguments);
+        ~MJPEGEncoderOpenCLImpl();
 
     protected:
         bool _writeIntermediateResult = false;
@@ -25,5 +27,13 @@ namespace core::encoder {
                 vector<char> &output,
                 void **sharedData
         ) override;
+
+    private:
+        void bootstrap();
+        cl::Device* _device;
+        cl::Context * _context;
+        cl::CommandQueue* _clCmdQueue;
+
+        void dieIfClError(cl_int err, int line = 0);
     };
 }

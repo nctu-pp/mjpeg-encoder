@@ -20,6 +20,16 @@ ImplKind model::parseImplKind(const string &str) {
     return Serial;
 }
 
+CLDevice model::parseCLDevice(const string &str) {
+    string lcStr(str);
+    std::transform(lcStr.begin(), lcStr.end(), lcStr.begin(), ::tolower);
+
+    if (lcStr == "gpu")
+        return GPU;
+
+    return CPU;
+}
+
 YCbCr444::YCbCr444(const Size &size) {
     _size = size;
     _perChannelSize = size.height * size.width;
