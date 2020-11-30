@@ -45,7 +45,7 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
 
     // copy rgba data to kernel
     err = this->_clCmdQueue->enqueueWriteBuffer(*dRgbaBuffer, CL_TRUE, 0, length, (char *) originalData);
-    this->dieIfClError(err);
+    this->dieIfClError(err, __LINE__);
 
     err = this->_clCmdQueue->enqueueNDRangeKernel(
             *clPaddingAndTransformColorSpace,
@@ -54,7 +54,7 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
             cl::NullRange
     );
 
-    this->dieIfClError(err);
+    this->dieIfClError(err, __LINE__);
 
 
     // TODO: convert to jpeg in opencl
@@ -167,7 +167,8 @@ void MJPEGEncoderOpenCLImpl::start() {
         int readFrameCnt = videoReader.readFrame(buffer, maxBatchFrames);
         outputBuffer.clear();
 
-        cl::NDRange globalSize(groupWidth, groupHeight, maxBatchFrames);
+        cl::NDRange globalSize(groupWidth, groupHeight,
+                               readFrameCnt * (extraNeedBatchPerFrameX * extraNeedBatchPerFrameY));
 
         passData[6] = &globalSize;
 
