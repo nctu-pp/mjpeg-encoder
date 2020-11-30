@@ -145,8 +145,8 @@ void MJPEGEncoderOpenCLImpl::start() {
     clPaddingAndTransformColorSpace.setArg(transformArgc++, dOtherArgs);
 
     auto copiedTotalPixels = totalPixels;
-    auto groupWidth = std::min((unsigned long) _cachedPaddingSize.width, _maxWorkItems[0]);
-    auto groupHeight = std::min((unsigned long) _cachedPaddingSize.height, _maxWorkItems[1]);
+    auto groupWidth = std::min((cl_ulong) _cachedPaddingSize.width, _maxWorkItems[0]);
+    auto groupHeight = std::min((cl_ulong) _cachedPaddingSize.height, _maxWorkItems[1]);
 
     void *passData[] = {
             &dRgbaBuffer,
