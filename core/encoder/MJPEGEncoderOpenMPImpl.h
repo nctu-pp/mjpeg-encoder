@@ -22,7 +22,7 @@ namespace core::encoder {
         void finalize() override;
 
         void encodeJpeg(
-                color::RGBA *paddedData, int length,
+                color::RGBA *originalData, int length,
                 vector<char> &output,
                 void** sharedData
         ) override;
@@ -37,15 +37,5 @@ namespace core::encoder {
                 const BitCode* codewords,
                 BitBuffer& bitBuffer
         );
-
-        void transformColorSpace(
-                color::RGBA *__restrict rgbaBuffer, color::YCbCr444 &yuv444Buffer,
-                const Size &frameSize
-        ) const override;
-
-        void doPadding(
-                char *__restrict originalBuffer, const Size &originalSize,
-                char *__restrict targetBuffer, const Size &targetSize
-        ) override;
     };
 }

@@ -15,12 +15,12 @@ MJPEGEncoderSerialImpl::MJPEGEncoderSerialImpl(const Arguments &arguments)
 }
 
 void MJPEGEncoderSerialImpl::encodeJpeg(
-        color::RGBA *paddedData, int length,
+        color::RGBA *originalData, int length,
         vector<char> &output,
         void **sharedData
 ) {
     auto yuvFrameBuffer = static_cast<color::YCbCr444 *>(sharedData[0]);
-    transformColorSpace(paddedData, *yuvFrameBuffer, this->_cachedPaddingSize);
+    transformColorSpace(originalData, *yuvFrameBuffer, this->_arguments.size, this->_cachedPaddingSize);
 
     _bitBuffer.init();
     writeJFIFHeader(output);
@@ -123,11 +123,6 @@ void MJPEGEncoderSerialImpl::start() {
     cout << endl;
     for (size_t frameNo = 0; frameNo < totalFrames; frameNo++) {
         int readFrameNo = videoReader.readFrame(buffer, 1);
-        doPadding(
-                buffer, _arguments.size,
-                paddedBuffer, this->_cachedPaddingSize
-        );
-
         outputBuffer.clear();
         this->encodeJpeg(
                 paddedRgbaPtr, totalPixels,

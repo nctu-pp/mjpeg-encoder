@@ -21,7 +21,7 @@ namespace core::encoder {
         void finalize() override;
 
         void encodeJpeg(
-                color::RGBA *paddedData, int length,
+                color::RGBA *originalData, int length,
                 vector<char> &output,
                 void** sharedData
         ) override;

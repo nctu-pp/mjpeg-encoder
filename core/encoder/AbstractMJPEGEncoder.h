@@ -32,17 +32,17 @@ namespace core::encoder {
         void initJpegTable();
 
         virtual void encodeJpeg(
-                color::RGBA *paddedData, int length,
+                color::RGBA *originalData, int length,
                 vector<char> &output,
                 void **sharedData
         ) = 0;
 
         inline void encodeJpeg(
-                color::RGBA *paddedData, int length,
+                color::RGBA *originalData, int length,
                 vector<char> &output
         ) {
             return encodeJpeg(
-                    paddedData, length,
+                    originalData, length,
                     output,
                     nullptr
             );
@@ -52,18 +52,13 @@ namespace core::encoder {
 
         virtual void transformColorSpace(
                 color::RGBA *__restrict rgbaBuffer, color::YCbCr444 &yuv444Buffer,
-                const Size &frameSize
+                const Size &srcSize, const Size& dstSize
         ) const;
 
         Size getPaddingSize() const;
 
         Arguments _arguments;
         Size _cachedPaddingSize{0, 0};
-
-        virtual void doPadding(
-                char *__restrict originalBuffer, const Size &originalSize,
-                char *__restrict targetBuffer, const Size &targetSize
-        );
 
         static void writeBuffer(const string &path, char *buffer, size_t len, bool append = false);
 

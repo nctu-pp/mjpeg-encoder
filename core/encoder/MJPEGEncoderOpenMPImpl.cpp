@@ -3,7 +3,7 @@
 //
 
 #include "MJPEGEncoderOpenMPImpl.h"
-#include <time.h>
+
 using namespace io;
 using namespace std;
 using namespace core;
@@ -15,6 +15,8 @@ MJPEGEncoderOpenMPImpl::MJPEGEncoderOpenMPImpl(const Arguments &arguments) : Abs
         omp_set_num_threads(arguments.numThreads);
 }
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "openmp-use-default-none"
 void MJPEGEncoderOpenMPImpl::start() {
     const auto maxThreads = omp_get_max_threads();
 
@@ -86,11 +88,6 @@ void MJPEGEncoderOpenMPImpl::start() {
                 int tid = omp_get_thread_num();
                 int readFrameNo = videoReaderArr[tid]->readFrame(frameNo+tid, bufferArr[tid], 1);
 
-                doPadding(
-                        bufferArr[tid], _arguments.size,
-                        paddedBuffer[tid], this->_cachedPaddingSize
-                );
-
 				outputBuffer[tid].assign(headerOutputBuffer.begin(), headerOutputBuffer.end());
 				
                 void *passData[] = {
@@ -98,7 +95,7 @@ void MJPEGEncoderOpenMPImpl::start() {
                     nullptr,
                 };
                 this->encodeJpeg(
-                        (color::RGBA *)paddedRgbaPtrArr[tid], totalPixels,
+                        (color::RGBA *) bufferArr[tid], totalPixels,
                         outputBuffer[tid],
                         passData
                 );
@@ -134,16 +131,16 @@ void MJPEGEncoderOpenMPImpl::start() {
         delete yuvFrameBuffer[i];
     }
 }
+#pragma clang diagnostic pop
 
 void MJPEGEncoderOpenMPImpl::finalize() {
 
 }
 
-void MJPEGEncoderOpenMPImpl::encodeJpeg(color::RGBA *paddedData, int length, vector<char> &output,
+void MJPEGEncoderOpenMPImpl::encodeJpeg(color::RGBA *originalData, int length, vector<char> &output,
                                         void **sharedData) {
-    // TODO: move _yuvFrameBuffer to shared data
     auto yuvFrameBuffer = static_cast<color::YCbCr444 *>(sharedData[0]);
-    transformColorSpace(paddedData, *yuvFrameBuffer, this->_cachedPaddingSize);
+    transformColorSpace(originalData, *yuvFrameBuffer, this->_arguments.size, this->_cachedPaddingSize);
 
     // auto localBitBuffer = static_cast<BitBuffer *>(sharedData[1]);
     // localBitBuffer->init();
@@ -205,82 +202,6 @@ void MJPEGEncoderOpenMPImpl::encodeJpeg(color::RGBA *paddedData, int length, vec
     
     output.push_back(0xFF);
     output.push_back(0xD9);
-}
-
-void MJPEGEncoderOpenMPImpl::transformColorSpace(
-        color::RGBA *__restrict rgbaBuffer, color::YCbCr444 &yuv444Buffer,
-        const Size &frameSize
-) const {
-    // Since context switch overhead too high, use original instead.
-    AbstractMJPEGEncoder::transformColorSpace(
-            rgbaBuffer, yuv444Buffer, frameSize
-    );
-}
-
-void MJPEGEncoderOpenMPImpl::doPadding(char *originalBuffer, const Size &originalSize, char *targetBuffer,
-                                       const Size &targetSize) {
-    const auto originalRowStep = originalSize.width * io::RawVideoReader::PIXEL_BYTES;
-    const auto targetRowStep = targetSize.width * io::RawVideoReader::PIXEL_BYTES;
-    const auto requireColPaddingCnt = targetSize.width - originalSize.width;
-    const auto requireRowPaddingCnt = targetSize.height - originalSize.height;
-    const auto origTotalRows = originalSize.height;
-    const auto origTotalCols = originalSize.width;
-    const auto padTotalRows = targetSize.height;
-    const auto padTotalCols = targetSize.width;
-
-#pragma omp parallel for simd default(none) \
-        shared( \
-            origTotalRows, \
-            originalRowStep, targetRowStep, \
-            originalBuffer, targetBuffer \
-        )
-    for (auto row = 0; row < origTotalRows; row++) {
-        char *__restrict originalPtr = originalBuffer + (row * originalRowStep);
-        char *__restrict targetPtr = targetBuffer + (row * targetRowStep);
-        memcpy(targetPtr, originalPtr, originalRowStep); // aaa
-    }
-
-
-    // do column padding
-    if (requireColPaddingCnt != 0) {
-#pragma omp parallel for simd default(none) \
-        shared( \
-            targetBuffer, origTotalRows, \
-            origTotalCols, padTotalCols, \
-            requireColPaddingCnt \
-        )
-        for (auto row = 0; row < origTotalRows; row++) {
-            char *__restrict refPixelPtr = targetBuffer + io::RawVideoReader::PIXEL_BYTES *
-                                                          (row * padTotalCols + (origTotalCols - 1));
-
-            char *__restrict targetPixelPtr = refPixelPtr + io::RawVideoReader::PIXEL_BYTES;
-
-            for (size_t i = 0, k = requireColPaddingCnt; i < k; i++) {
-                memcpy(
-                        targetPixelPtr + i * io::RawVideoReader::PIXEL_BYTES,
-                        refPixelPtr,
-                        io::RawVideoReader::PIXEL_BYTES
-                );
-            }
-        }
-    }
-
-    // do row padding
-    if (requireRowPaddingCnt != 0) {
-        auto refPixelPtr = targetBuffer +
-                           io::RawVideoReader::PIXEL_BYTES * ((origTotalRows - 1) * padTotalCols);
-
-#pragma omp parallel for simd default(none) \
-        shared( \
-            targetBuffer, refPixelPtr, \
-            origTotalRows, padTotalRows, \
-            padTotalCols, targetRowStep \
-        )
-        for (auto row = origTotalRows; row < padTotalRows; row++) {
-            char *__restrict targetPixelPtr = targetBuffer + io::RawVideoReader::PIXEL_BYTES * (row * padTotalCols);
-            memcpy(targetPixelPtr, refPixelPtr, targetRowStep);
-        }
-    }
 }
 
 int16_t MJPEGEncoderOpenMPImpl::encodeBlock(vector<char>& output, float block[8][8], const float scaled[8*8], int16_t lastDC,

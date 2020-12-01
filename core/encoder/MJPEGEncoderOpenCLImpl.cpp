@@ -283,6 +283,8 @@ void MJPEGEncoderOpenCLImpl::bootstrap() {
          << "]." << endl;
 
     _maxWorkItems = firstMatchDevice->getInfo<CL_DEVICE_MAX_WORK_ITEM_SIZES>();
+//    _maxWorkItems[0] = 128;
+//    _maxWorkItems[1] = 128;
     _maxWorkGroupSize = firstMatchDevice->getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
 
     _context = new cl::Context(*_device);
