@@ -38,19 +38,25 @@ namespace model {
              * Get Y Channel pointer, [0, 255]
              * @return data pointer
              */
-            ChannelData *__restrict getYChannel() const;
+            inline ChannelData *__restrict getYChannel() const {
+                return _yChannel;
+            }
 
             /**
              * Get Cb (U) Channel pointer, [0, 255]
              * @return data pointer
              */
-            ChannelData *__restrict getCbChannel() const;
+            inline ChannelData *__restrict getCbChannel() const {
+                return _cbChannel;
+            }
 
             /**
              * Get Cr (V) Channel pointer, [0, 255]
              * @return data pointer
              */
-            ChannelData *__restrict getCrChannel() const;
+            inline ChannelData *__restrict getCrChannel() const {
+                return _crChannel;
+            }
 
             size_t getPerChannelSize() const;
 
