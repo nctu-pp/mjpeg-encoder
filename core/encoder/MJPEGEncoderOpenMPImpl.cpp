@@ -185,9 +185,9 @@ void MJPEGEncoderOpenMPImpl::encodeJpeg(color::RGBA *originalData, int length, v
                     auto pixelPos = row * (maxWidth+1) + column;
                     column = (column < maxWidth) ? column + 1: column;
 
-                    Y[deltaY][deltaX] = static_cast<float>(yuvFrameBuffer->getYChannel()[pixelPos])-128;
-                    Cb[deltaY][deltaX] = static_cast<float>(yuvFrameBuffer->getCbChannel()[pixelPos])-128;
-                    Cr[deltaY][deltaX] = static_cast<float>(yuvFrameBuffer->getCrChannel()[pixelPos])-128;
+                    Y[deltaY][deltaX] = yuvFrameBuffer->getYChannel()[pixelPos];
+                    Cb[deltaY][deltaX] = yuvFrameBuffer->getCbChannel()[pixelPos];
+                    Cr[deltaY][deltaX] = yuvFrameBuffer->getCrChannel()[pixelPos];
 
                 }
             }
