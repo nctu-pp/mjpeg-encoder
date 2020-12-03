@@ -119,15 +119,16 @@ void MJPEGEncoderOpenCLImpl::start() {
     } while (false);
 
     auto batchDataSizeOneChannel = totalPixels * maxBatchFrames;
-    auto hYChannel = new char[batchDataSizeOneChannel];
-    auto hCbChannel = new char[batchDataSizeOneChannel];
-    auto hCrChannel = new char[batchDataSizeOneChannel];
+    auto hYChannel = new color::YCbCr444::ChannelData[batchDataSizeOneChannel];
+    auto hCbChannel = new color::YCbCr444::ChannelData[batchDataSizeOneChannel];
+    auto hCrChannel = new color::YCbCr444::ChannelData[batchDataSizeOneChannel];
+
 
     // init opencl buffer
     cl::Buffer dRgbaBuffer(*_context, CL_MEM_READ_ONLY, originalRgbFrameSize * maxBatchFrames);
-    cl::Buffer dYChannelBuffer(*_context, CL_MEM_READ_WRITE, sizeof(char) * batchDataSizeOneChannel);
-    cl::Buffer dCbChannelBuffer(*_context, CL_MEM_READ_WRITE, sizeof(char) * batchDataSizeOneChannel);
-    cl::Buffer dCrChannelBuffer(*_context, CL_MEM_READ_WRITE, sizeof(char) * batchDataSizeOneChannel);
+    cl::Buffer dYChannelBuffer(*_context, CL_MEM_READ_WRITE, sizeof(color::YCbCr444::ChannelData) * batchDataSizeOneChannel);
+    cl::Buffer dCbChannelBuffer(*_context, CL_MEM_READ_WRITE, sizeof(color::YCbCr444::ChannelData) * batchDataSizeOneChannel);
+    cl::Buffer dCrChannelBuffer(*_context, CL_MEM_READ_WRITE, sizeof(color::YCbCr444::ChannelData) * batchDataSizeOneChannel);
     cl::Buffer dOtherArgs(
             *_context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
             sizeof(int) * paddingKernelArgs.size(),
@@ -179,7 +180,7 @@ void MJPEGEncoderOpenCLImpl::start() {
         );
 
         if (_writeIntermediateResult) {
-            size_t dataSize = readFrameCnt * totalPixels * sizeof(char);
+            size_t dataSize = readFrameCnt * totalPixels * sizeof(color::YCbCr444::ChannelData);
             memset(hYChannel, '\0', dataSize);
             memset(hCbChannel, '\0', dataSize);
             memset(hCrChannel, '\0', dataSize);
@@ -196,15 +197,15 @@ void MJPEGEncoderOpenCLImpl::start() {
             for (auto j = 0; j < readFrameCnt; j++) {
                 auto offset = totalPixels * j;
                 writeBuffer(yuvDataTmpPath,
-                            hYChannel + offset, totalPixels,
+                            (char*)(hYChannel + offset), totalPixels,
                             true
                 );
                 writeBuffer(yuvDataTmpPath,
-                            hCbChannel + offset, totalPixels,
+                            (char*)(hCbChannel + offset), totalPixels,
                             true
                 );
                 writeBuffer(yuvDataTmpPath,
-                            hCrChannel + offset, totalPixels,
+                            (char*)(hCrChannel + offset), totalPixels,
                             true
                 );
             }
