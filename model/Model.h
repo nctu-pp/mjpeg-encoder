@@ -28,7 +28,7 @@ namespace model {
 
         class YCbCr444 {
         public:
-            typedef unsigned char ChannelData;
+            typedef float ChannelData;
 
             explicit YCbCr444(const Size &size);
 
