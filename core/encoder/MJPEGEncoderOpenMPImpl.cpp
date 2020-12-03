@@ -81,7 +81,7 @@ void MJPEGEncoderOpenMPImpl::start() {
     auto totalTimeStr = Utils::formatTimestamp(totalSeconds);
     cout << endl;
     for (size_t frameNo = 0; frameNo < totalFrames; frameNo+=maxThreads) {
-        int remain = (frameNo + maxThreads > totalFrames)?(frameNo - totalFrames):0;
+        int remain = (frameNo + maxThreads > totalFrames)?(maxThreads + frameNo - totalFrames):0;
         #pragma omp parallel for
         {
             for(int i = 0 ; i < maxThreads; i++){
@@ -116,8 +116,8 @@ void MJPEGEncoderOpenMPImpl::start() {
         auto currentTimeStr = Utils::formatTimestamp(currentTime);
 
         cout << "\u001B[A" << std::flush
-            << "Time: " << Utils::formatTimestamp(currentTime) << " / " << totalTimeStr
-            << endl;
+           << "Time: " << Utils::formatTimestamp(currentTime) << " / " << totalTimeStr
+           << endl;
     }
     aviOutputStream.close();
 
