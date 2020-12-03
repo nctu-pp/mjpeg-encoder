@@ -49,18 +49,6 @@ YCbCr444::~YCbCr444() {
     _crChannel = nullptr;
 }
 
-YCbCr444::ChannelData *__restrict YCbCr444::getYChannel() const {
-    return _yChannel;
-}
-
-YCbCr444::ChannelData *__restrict YCbCr444::getCbChannel() const {
-    return _cbChannel;
-}
-
-YCbCr444::ChannelData *__restrict YCbCr444::getCrChannel() const {
-    return _crChannel;
-}
-
 size_t YCbCr444::getPerChannelSize() const {
     return _perChannelSize;
 }
