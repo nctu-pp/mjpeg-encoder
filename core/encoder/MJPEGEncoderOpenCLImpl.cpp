@@ -288,13 +288,13 @@ void MJPEGEncoderOpenCLImpl::bootstrap() {
 //    _maxWorkItems[1] = 128;
     _maxWorkGroupSize = firstMatchDevice->getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
 
-    _context = new cl::Context(*_device);
+    _context = new cl::Context({*_device});
 
     string kernelCode = readClKernelFile("jpeg-encoder.cl");
 
     _program = new cl::Program(*_context, kernelCode);
 
-    auto buildRet = _program->build(devices);
+    auto buildRet = _program->build({*_device});
     if (buildRet == CL_BUILD_PROGRAM_FAILURE) {
         auto buildInfo = _program->getBuildInfo<CL_PROGRAM_BUILD_LOG>(*_device);
         cerr << buildInfo << endl;
