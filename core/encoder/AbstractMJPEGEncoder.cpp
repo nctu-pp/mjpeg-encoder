@@ -67,7 +67,7 @@ void AbstractMJPEGEncoder::writeBuffer(const string &path, char *buffer, size_t 
 }
 
 void AbstractMJPEGEncoder::DCT(
-        float block[8*8],
+        float *block,
         uint8_t stride
 ) const {
     const auto SqrtHalfSqrt = 1.306562965f; //    sqrt((2 + sqrt(2)) / 2) = cos(pi * 1 / 8) * sqrt(2)
@@ -131,9 +131,7 @@ void AbstractMJPEGEncoder::generateHuffmanTable(
     }
 }
 
-int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8], const float scaled[8*8], int16_t lastDC,
-                    const BitCode huffmanDC[256], const BitCode huffmanAC[256], const BitCode* codewords)
-{
+void AbstractMJPEGEncoder::doDCT(float block[8][8], const float scaled[8*8]) const{
     // "linearize" the 8x8 block, treat it as a flat array of 64 floats
     auto block64 = (float*) block;
 
@@ -147,7 +145,13 @@ int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8
     // scale
     for (auto i = 0; i < 8*8; i++)
         block64[i] *= scaled[i];
+}
 
+int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8], int16_t lastDC,
+                    const BitCode huffmanDC[256], const BitCode huffmanAC[256], const BitCode* codewords)
+{
+    auto block64 = (float*) block;
+// cout << "ok0:" << block64[0] << endl;
     // encode DC (the first coefficient is the "average color" of the 8x8 block)
     auto DC = int(block64[0] + (block64[0] >= 0 ? +0.5f : -0.5f)); // C++11's nearbyint() achieves a similar effect
 
@@ -163,7 +167,7 @@ int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8
         if (quantized[i] != 0)
             posNonZero = i;
     }
-
+// cout << "ok1:" << DC << endl;
     // same "average color" as previous block ?
     auto diff = DC - lastDC;
     if (diff == 0)
@@ -174,7 +178,7 @@ int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8
         writeBitCode(output, huffmanDC[bits.numBits], _bitBuffer);
         writeBitCode(output, bits, _bitBuffer);
     }
-
+// cout << "ok2" << endl;
     // encode ACs (quantized[1..63])
     auto offset = 0; // upper 4 bits count the number of consecutive zeros
     for (auto i = 1; i <= posNonZero; i++) // quantized[0] was already written, skip all trailing zeros, too

@@ -143,7 +143,7 @@ namespace core::encoder {
         float _scaledChrominance[8*8];
 
         void DCT(
-                float block[8*8],
+                float *block,
                 uint8_t stride
         ) const;
 
@@ -165,10 +165,14 @@ namespace core::encoder {
                 }
         };
 
+        void doDCT(
+                float block[8][8],
+                const float scaled[8*8]
+        ) const;
+
         virtual int16_t encodeBlock(
                 vector<char>& output,
                 float block[8][8],
-                const float scaled[8*8],
                 int16_t lastDC,
                 const BitCode huffmanDC[256],
                 const BitCode huffmanAC[256], 

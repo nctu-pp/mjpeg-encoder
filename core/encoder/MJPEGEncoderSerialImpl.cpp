@@ -54,30 +54,58 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
 
     // average color of the previous MCU
     int16_t lastYDC = 0, lastCbDC = 0, lastCrDC = 0;
-    auto maxWidth = (this->_cachedPaddingSize).width - 1;
-    auto maxHeight = (this->_cachedPaddingSize).height - 1;
-    float Y[8][8], Cb[8][8], Cr[8][8];
-    for (auto mcuY = 0; mcuY < (this->_cachedPaddingSize).height; mcuY += 8) { // each step is either 8 or 16 (=mcuSize)
-        for (auto mcuX = 0; mcuX < (this->_cachedPaddingSize).width; mcuX += 8) {
-            for (auto deltaY = 0; deltaY < 8; ++deltaY) {
-                auto column = mcuX;
-                auto row = (mcuY + deltaY > maxHeight) ? maxHeight : mcuY + deltaY;
-                for (auto deltaX = 0; deltaX < 8; ++deltaX) {
-                    auto pixelPos = row * (maxWidth+1) + column;
-                    column = (column < maxWidth) ? column + 1: column;
+    auto maxWidth = (this->_cachedPaddingSize).width;
+    auto maxHeight = (this->_cachedPaddingSize).height;
+    int number_of_blocks = (maxHeight/8)*(maxWidth/8);
+    int index = 0, offset;
 
-                    Y[deltaY][deltaX] = yuvFrameBuffer->getYChannel()[pixelPos];
-                    Cb[deltaY][deltaX] = yuvFrameBuffer->getCbChannel()[pixelPos];
-                    Cr[deltaY][deltaX] = yuvFrameBuffer->getCrChannel()[pixelPos];
+    float yBlock[number_of_blocks][8][8];
+    float cbBlock[number_of_blocks][8][8];
+    float crBlock[number_of_blocks][8][8];
 
-                }
-            }
-            lastYDC = encodeBlock(output, Y, _scaledLuminance, lastYDC, _huffmanLuminanceDC, _huffmanLuminanceAC, codewords);
-            lastCbDC = encodeBlock(output, Cb, _scaledChrominance, lastCbDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords);
-            lastCrDC = encodeBlock(output, Cr, _scaledChrominance, lastCrDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords);
+    for (auto mcuY = 0; mcuY < maxHeight; mcuY += 8) { // each step is either 8 or 16 (=mcuSize)
+        for (auto mcuX = 0; mcuX < maxWidth; mcuX += 8) {
+            offset = mcuY*maxWidth+mcuX;
+            index = mcuY/8 * (maxWidth/8) + mcuX/8;
 
+            memcpy(yBlock[index][0], yuvFrameBuffer->getYChannel()+maxWidth*0+offset, sizeof(float)*8);
+            memcpy(yBlock[index][1], yuvFrameBuffer->getYChannel()+maxWidth*1+offset, sizeof(float)*8);
+            memcpy(yBlock[index][2], yuvFrameBuffer->getYChannel()+maxWidth*2+offset, sizeof(float)*8);
+            memcpy(yBlock[index][3], yuvFrameBuffer->getYChannel()+maxWidth*3+offset, sizeof(float)*8);
+            memcpy(yBlock[index][4], yuvFrameBuffer->getYChannel()+maxWidth*4+offset, sizeof(float)*8);
+            memcpy(yBlock[index][5], yuvFrameBuffer->getYChannel()+maxWidth*5+offset, sizeof(float)*8);
+            memcpy(yBlock[index][6], yuvFrameBuffer->getYChannel()+maxWidth*6+offset, sizeof(float)*8);
+            memcpy(yBlock[index][7], yuvFrameBuffer->getYChannel()+maxWidth*7+offset, sizeof(float)*8);
+            
+            memcpy(cbBlock[index][0], yuvFrameBuffer->getCbChannel()+maxWidth*0+offset, sizeof(float)*8);
+            memcpy(cbBlock[index][1], yuvFrameBuffer->getCbChannel()+maxWidth*1+offset, sizeof(float)*8);
+            memcpy(cbBlock[index][2], yuvFrameBuffer->getCbChannel()+maxWidth*2+offset, sizeof(float)*8);
+            memcpy(cbBlock[index][3], yuvFrameBuffer->getCbChannel()+maxWidth*3+offset, sizeof(float)*8);
+            memcpy(cbBlock[index][4], yuvFrameBuffer->getCbChannel()+maxWidth*4+offset, sizeof(float)*8);
+            memcpy(cbBlock[index][5], yuvFrameBuffer->getCbChannel()+maxWidth*5+offset, sizeof(float)*8);
+            memcpy(cbBlock[index][6], yuvFrameBuffer->getCbChannel()+maxWidth*6+offset, sizeof(float)*8);
+            memcpy(cbBlock[index][7], yuvFrameBuffer->getCbChannel()+maxWidth*7+offset, sizeof(float)*8);
+			
+            memcpy(crBlock[index][0], yuvFrameBuffer->getCrChannel()+maxWidth*0+offset, sizeof(float)*8);
+            memcpy(crBlock[index][1], yuvFrameBuffer->getCrChannel()+maxWidth*1+offset, sizeof(float)*8);
+            memcpy(crBlock[index][2], yuvFrameBuffer->getCrChannel()+maxWidth*2+offset, sizeof(float)*8);
+            memcpy(crBlock[index][3], yuvFrameBuffer->getCrChannel()+maxWidth*3+offset, sizeof(float)*8);
+            memcpy(crBlock[index][4], yuvFrameBuffer->getCrChannel()+maxWidth*4+offset, sizeof(float)*8);
+            memcpy(crBlock[index][5], yuvFrameBuffer->getCrChannel()+maxWidth*5+offset, sizeof(float)*8);
+            memcpy(crBlock[index][6], yuvFrameBuffer->getCrChannel()+maxWidth*6+offset, sizeof(float)*8);
+            memcpy(crBlock[index][7], yuvFrameBuffer->getCrChannel()+maxWidth*7+offset, sizeof(float)*8);
+            
+            doDCT(yBlock[index], _scaledLuminance);
+            doDCT(cbBlock[index], _scaledChrominance);
+            doDCT(crBlock[index], _scaledChrominance);
         } // end mcuX
     } // end mcuY
+
+    for(int i = 0; i < number_of_blocks; ++i) {
+        lastYDC = encodeBlock(output, yBlock[i], lastYDC, _huffmanLuminanceDC, _huffmanLuminanceAC, codewords);
+        lastCbDC = encodeBlock(output, cbBlock[i], lastCbDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords);
+        lastCrDC = encodeBlock(output, crBlock[i], lastCrDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords);
+    }
 
     writeBitCode(output, BitCode(0x7F, 7), _bitBuffer);
 
