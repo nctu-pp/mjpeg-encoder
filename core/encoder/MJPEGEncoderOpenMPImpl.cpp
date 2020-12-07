@@ -72,6 +72,12 @@ void MJPEGEncoderOpenMPImpl::start() {
     writeHuffmanTable(headerOutputBuffer);
     writeScanInfo(headerOutputBuffer);
 
+    // init local variables
+    for(auto i = 0; i < maxThreads; i++) {
+        // 2 MB
+        outputBuffer[i].reserve(2 * 1024 * 1024);
+    }
+
     aviOutputStream.start();
  
     auto totalSeconds = Utils::getCurrentTimestamp(
@@ -200,8 +206,8 @@ void MJPEGEncoderOpenMPImpl::encodeJpeg(color::RGBA *originalData, int length, v
 
     writeBitCode(output, BitCode(0x7F, 7), localBitBuffer);
     
-    output.push_back(0xFF);
-    output.push_back(0xD9);
+    output.emplace_back(0xFF);
+    output.emplace_back(0xD9);
 }
 
 int16_t MJPEGEncoderOpenMPImpl::encodeBlock(vector<char>& output, float block[8][8], const float scaled[8*8], int16_t lastDC,
@@ -243,7 +249,7 @@ int16_t MJPEGEncoderOpenMPImpl::encodeBlock(vector<char>& output, float block[8]
         writeBitCode(output, huffmanDC[0x00], bitBuffer);
     else
     {
-        auto bits = codewords[diff]; // nope, encode the difference to previous block's average color
+        auto& bits = codewords[diff]; // nope, encode the difference to previous block's average color
         writeBitCode(output, huffmanDC[bits.numBits], bitBuffer);
         writeBitCode(output, bits, bitBuffer);
     }
@@ -260,13 +266,13 @@ int16_t MJPEGEncoderOpenMPImpl::encodeBlock(vector<char>& output, float block[8]
             if (offset > 0xF0) // remember, the counter is in the upper 4 bits, 0xF = 15
             {
                 writeBitCode(output, huffmanAC[0xF0], bitBuffer);
-                // bitCodeBuffer.push_back(huffmanAC[0xF0]);
+                // bitCodeBuffer.emplace_back(huffmanAC[0xF0]);
                 offset = 0;
             }
             i++;
         }
 
-        auto encoded = codewords[quantized[i]];
+        auto& encoded = codewords[quantized[i]];
         // combine number of zeros with the number of bits of the next non-zero value
         writeBitCode(output, huffmanAC[offset + encoded.numBits], bitBuffer);
         writeBitCode(output, encoded, bitBuffer);
