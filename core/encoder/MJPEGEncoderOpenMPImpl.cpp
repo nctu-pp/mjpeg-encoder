@@ -89,23 +89,21 @@ void MJPEGEncoderOpenMPImpl::start() {
     for (size_t frameNo = 0; frameNo < totalFrames; frameNo+=maxThreads) {
         int remain = (frameNo + maxThreads > totalFrames)?(maxThreads + frameNo - totalFrames):0;
         #pragma omp parallel for
-        {
-            for(int i = 0 ; i < maxThreads; i++){
-                int tid = omp_get_thread_num();
-                int readFrameNo = videoReaderArr[tid]->readFrame(frameNo+tid, bufferArr[tid], 1);
+        for(int i = 0 ; i < maxThreads; i++){
+            int tid = omp_get_thread_num();
+            int readFrameNo = videoReaderArr[tid]->readFrame(frameNo+tid, bufferArr[tid], 1);
 
-				outputBuffer[tid].assign(headerOutputBuffer.begin(), headerOutputBuffer.end());
-				
-                void *passData[] = {
-                    yuvFrameBuffer[tid],
-                    nullptr,
-                };
-                this->encodeJpeg(
-                        (color::RGBA *) bufferArr[tid], totalPixels,
-                        outputBuffer[tid],
-                        passData
-                );
-            }
+            outputBuffer[tid].assign(headerOutputBuffer.begin(), headerOutputBuffer.end());
+            
+            void *passData[] = {
+                yuvFrameBuffer[tid],
+                nullptr,
+            };
+            this->encodeJpeg(
+                    (color::RGBA *) bufferArr[tid], totalPixels,
+                    outputBuffer[tid],
+                    passData
+            );
         }
 
         // cout << _arguments.tmpDir << endl;
