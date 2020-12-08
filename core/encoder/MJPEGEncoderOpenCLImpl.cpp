@@ -17,12 +17,12 @@ MJPEGEncoderOpenCLImpl::MJPEGEncoderOpenCLImpl(const Arguments &arguments)
     this->_clCmdQueue = nullptr;
     this->_maxWorkGroupSize = 0;
 
-    if (_writeIntermediateResult) {
-        writeBuffer(
-                _arguments.tmpDir + "/yuv444.raw",
-                nullptr, 0
-        );
-    }
+    // if (_writeIntermediateResult) {
+    //     writeBuffer(
+    //             _arguments.tmpDir + "/yuv444.raw",
+    //             nullptr, 0
+    //     );
+    // }
 }
 
 void MJPEGEncoderOpenCLImpl::encodeJpeg(
@@ -163,7 +163,7 @@ void MJPEGEncoderOpenCLImpl::start() {
             nullptr,
     };
 
-    string yuvDataTmpPath = _arguments.tmpDir + "/yuv444.raw";
+//     string yuvDataTmpPath = _arguments.tmpDir + "/yuv444.raw";
     for (size_t frameNo = 0; frameNo < totalFrames; frameNo += maxBatchFrames) {
         int readFrameCnt = videoReader.readFrame(buffer, maxBatchFrames);
         outputBuffer.clear();
@@ -179,37 +179,37 @@ void MJPEGEncoderOpenCLImpl::start() {
                 passData
         );
 
-        if (_writeIntermediateResult) {
-            size_t dataSize = readFrameCnt * totalPixels * sizeof(color::YCbCr444::ChannelData);
-            memset(hYChannel, '\0', dataSize);
-            memset(hCbChannel, '\0', dataSize);
-            memset(hCrChannel, '\0', dataSize);
-            _clCmdQueue->enqueueReadBuffer(dYChannelBuffer, CL_TRUE,
-                                           0, dataSize,
-                                           hYChannel);
-            _clCmdQueue->enqueueReadBuffer(dCbChannelBuffer, CL_TRUE,
-                                           0, dataSize,
-                                           hCbChannel);
-            _clCmdQueue->enqueueReadBuffer(dCrChannelBuffer, CL_TRUE,
-                                           0, dataSize,
-                                           hCrChannel);
-
-            for (auto j = 0; j < readFrameCnt; j++) {
-                auto offset = totalPixels * j;
-                writeBuffer(yuvDataTmpPath,
-                            (char*)(hYChannel + offset), totalPixels,
-                            true
-                );
-                writeBuffer(yuvDataTmpPath,
-                            (char*)(hCbChannel + offset), totalPixels,
-                            true
-                );
-                writeBuffer(yuvDataTmpPath,
-                            (char*)(hCrChannel + offset), totalPixels,
-                            true
-                );
-            }
-        }
+//        if (_writeIntermediateResult) {
+//            size_t dataSize = readFrameCnt * totalPixels * sizeof(color::YCbCr444::ChannelData);
+//            memset(hYChannel, '\0', dataSize);
+//            memset(hCbChannel, '\0', dataSize);
+//            memset(hCrChannel, '\0', dataSize);
+//            _clCmdQueue->enqueueReadBuffer(dYChannelBuffer, CL_TRUE,
+//                                           0, dataSize,
+//                                           hYChannel);
+//            _clCmdQueue->enqueueReadBuffer(dCbChannelBuffer, CL_TRUE,
+//                                           0, dataSize,
+//                                           hCbChannel);
+//            _clCmdQueue->enqueueReadBuffer(dCrChannelBuffer, CL_TRUE,
+//                                           0, dataSize,
+//                                           hCrChannel);
+//
+//            for (auto j = 0; j < readFrameCnt; j++) {
+//                auto offset = totalPixels * j;
+//                writeBuffer(yuvDataTmpPath,
+//                            (char*)(hYChannel + offset), totalPixels,
+//                            true
+//                );
+//                writeBuffer(yuvDataTmpPath,
+//                            (char*)(hCbChannel + offset), totalPixels,
+//                            true
+//                );
+//                writeBuffer(yuvDataTmpPath,
+//                            (char*)(hCrChannel + offset), totalPixels,
+//                            true
+//                );
+//            }
+//        }
 
         aviOutputStream.writeFrame(outputBuffer.data(), outputBuffer.size());
 

@@ -60,9 +60,9 @@ __kernel void paddingAndTransformColorSpace(
     g = (value >> 8) & 0xFF;
     b = (value) & 0xFF;
 
-    y = (int) (+0.299f * r + 0.587f * g + 0.114f * b);
-    cb = (int) (-0.16874f * r - 0.33126f * g + 0.5f * b + 128.f);
-    cr = (int) (+0.5f * r - 0.41869f * g - 0.08131f * b + 128.f);
+    y = (int) (+0.299f * r + 0.587f * g + 0.114f * b) - 128.f;
+    cb = (int) (-0.16874f * r - 0.33126f * g + 0.5f * b);
+    cr = (int) (+0.5f * r - 0.41869f * g - 0.08131f * b);
 
     yChannel[dstOffset] = y;
     cbChannel[dstOffset] = cb;
