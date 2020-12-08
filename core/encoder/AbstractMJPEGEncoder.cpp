@@ -226,13 +226,17 @@ void AbstractMJPEGEncoder::writeBitCode(
     bitBuffer.data   <<= data.numBits;
     bitBuffer.data    |= data.code;
 
+    uint8_t localBuffer[bitBuffer.numBits >> 2]; // / 4
+    size_t localBufferLen = 0;
     while(bitBuffer.numBits >= 8) {
         bitBuffer.numBits -= 8;
         auto oneByte = uint8_t(bitBuffer.data >> bitBuffer.numBits);
-        output.emplace_back(oneByte);
+        localBuffer[localBufferLen++] = oneByte;
         if (oneByte == 0xFF)
-            output.emplace_back(0);
+            localBuffer[localBufferLen++] = 0;
     }
+
+    output.insert(output.end(), localBuffer, localBuffer + localBufferLen);
 };
 
 void AbstractMJPEGEncoder::writeJFIFHeader(
