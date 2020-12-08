@@ -59,9 +59,11 @@ void MJPEGEncoderSerialImpl::encodeJpeg(
     int number_of_blocks = (maxHeight/8)*(maxWidth/8);
     int index = 0, offset;
 
-    float yBlock[number_of_blocks][8][8];
-    float cbBlock[number_of_blocks][8][8];
-    float crBlock[number_of_blocks][8][8];
+    const auto blockAlign = 8 * 8 * sizeof(float);
+
+    auto yBlock = static_cast<JpegBlockType*>(__builtin_assume_aligned(sharedData[1], blockAlign));
+    auto cbBlock = static_cast<JpegBlockType*>(__builtin_assume_aligned(sharedData[2], blockAlign));
+    auto crBlock = static_cast<JpegBlockType*>(__builtin_assume_aligned(sharedData[3], blockAlign));
 
     for (auto mcuY = 0; mcuY < maxHeight; mcuY += 8) { // each step is either 8 or 16 (=mcuSize)
         for (auto mcuX = 0; mcuX < maxWidth; mcuX += 8) {
@@ -131,6 +133,10 @@ void MJPEGEncoderSerialImpl::start() {
             ->setTotalFrames(videoReader.getTotalFrames());
 
     color::YCbCr444 yuvFrameBuffer(this->_cachedPaddingSize);
+    auto numberOfBlocks = yuvFrameBuffer.getPerChannelSize() >> 6; // (w*h) / 64
+    auto yBlock = new float[numberOfBlocks][8][8];
+    auto cbBlock = new float[numberOfBlocks][8][8];
+    auto crBlock = new float[numberOfBlocks][8][8];
 
     // share outputBuffer to reduce re-alloc
     vector<char> outputBuffer;
@@ -139,6 +145,9 @@ void MJPEGEncoderSerialImpl::start() {
 
     void *passData[] = {
             &yuvFrameBuffer,
+            yBlock,
+            cbBlock,
+            crBlock,
             nullptr,
     };
 
@@ -189,6 +198,9 @@ void MJPEGEncoderSerialImpl::start() {
          << endl;
     delete[] buffer;
     delete[] paddedBuffer;
+    delete[] yBlock;
+    delete[] cbBlock;
+    delete[] crBlock;
 }
 
 void MJPEGEncoderSerialImpl::finalize() {

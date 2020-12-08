@@ -14,6 +14,8 @@ namespace model {
         unsigned int width;
     } Size;
 
+    typedef float JpegBlockType[8][8];
+
     namespace color {
         typedef union alignas(4) RGBA_s {
             struct color_s {
