@@ -140,6 +140,7 @@ void MJPEGEncoderSerialImpl::start() {
 
     // share outputBuffer to reduce re-alloc
     vector<char> outputBuffer;
+    outputBuffer.reserve(2 * 1024 * 1024); // 2MB
 
     aviOutputStream.start();
 
