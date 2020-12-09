@@ -174,7 +174,7 @@ int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8
         writeBitCode(output, huffmanDC[0x00], _bitBuffer);
     else
     {
-        auto bits = codewords[diff]; // nope, encode the difference to previous block's average color
+        auto& bits = codewords[diff]; // nope, encode the difference to previous block's average color
         writeBitCode(output, huffmanDC[bits.numBits], _bitBuffer);
         writeBitCode(output, bits, _bitBuffer);
     }
@@ -196,7 +196,7 @@ int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8
             i++;
         }
 
-        auto encoded = codewords[quantized[i]];
+        auto& encoded = codewords[quantized[i]];
         // combine number of zeros with the number of bits of the next non-zero value
         writeBitCode(output, huffmanAC[offset + encoded.numBits], _bitBuffer);
         writeBitCode(output, encoded, _bitBuffer);
@@ -229,9 +229,9 @@ void AbstractMJPEGEncoder::writeBitCode(
     while(bitBuffer.numBits >= 8) {
         bitBuffer.numBits -= 8;
         auto oneByte = uint8_t(bitBuffer.data >> bitBuffer.numBits);
-        output.push_back(oneByte);
+        output.emplace_back(oneByte);
         if (oneByte == 0xFF)
-            output.push_back(0);
+            output.emplace_back(0);
     }
 };
 
@@ -254,9 +254,9 @@ void AbstractMJPEGEncoder::writeQuantizationTable(
         const uint8_t quantChrominance[64]
 ) {
     addMarker(output, 0xDB, 2+2*(1+8*8));
-    output.push_back(0x00);
+    output.emplace_back(0x00);
     output.insert(output.end(), &quantLuminance[0], &quantLuminance[64]);
-    output.push_back(0x01);
+    output.emplace_back(0x01);
     output.insert(output.end(), &quantChrominance[0], &quantChrominance[64]);
 }
 
@@ -264,35 +264,35 @@ void AbstractMJPEGEncoder::writeHuffmanTable(
         vector<char>& output
 ) {
     addMarker(output, 0xC4, 2+208+208);
-    output.push_back(0x00);
-    for (auto i = 0; i < 16; ++i) output.push_back(DcLuminanceCodesPerBitsize[i]);
-    for (auto i = 0; i < 12; ++i) output.push_back(DcLuminanceValues[i]);
-    output.push_back(0x10);
-    for (auto i = 0; i < 16; ++i) output.push_back(AcLuminanceCodesPerBitsize[i]);
-    for (auto i = 0; i < 162; ++i) output.push_back(AcLuminanceValues[i]);
-    output.push_back(0x01);
-    for (auto i = 0; i < 16; ++i) output.push_back(DcChrominanceCodesPerBitsize[i]);
-    for (auto i = 0; i < 12; ++i) output.push_back(DcChrominanceValues[i]);
-    output.push_back(0x11);
-    for (auto i = 0; i < 16; ++i) output.push_back(AcChrominanceCodesPerBitsize[i]);
-    for (auto i = 0; i < 162; ++i) output.push_back(AcChrominanceValues[i]);
+    output.emplace_back(0x00);
+    for (auto i = 0; i < 16; ++i) output.emplace_back(DcLuminanceCodesPerBitsize[i]);
+    for (auto i = 0; i < 12; ++i) output.emplace_back(DcLuminanceValues[i]);
+    output.emplace_back(0x10);
+    for (auto i = 0; i < 16; ++i) output.emplace_back(AcLuminanceCodesPerBitsize[i]);
+    for (auto i = 0; i < 162; ++i) output.emplace_back(AcLuminanceValues[i]);
+    output.emplace_back(0x01);
+    for (auto i = 0; i < 16; ++i) output.emplace_back(DcChrominanceCodesPerBitsize[i]);
+    for (auto i = 0; i < 12; ++i) output.emplace_back(DcChrominanceValues[i]);
+    output.emplace_back(0x11);
+    for (auto i = 0; i < 16; ++i) output.emplace_back(AcChrominanceCodesPerBitsize[i]);
+    for (auto i = 0; i < 162; ++i) output.emplace_back(AcChrominanceValues[i]);
 }
 
 void AbstractMJPEGEncoder::writeImageInfos(
         vector<char>& output
 ) {
     addMarker(output, 0xC0, 2+6+3*3);
-    output.push_back(0x08);
+    output.emplace_back(0x08);
 
-    output.push_back(this->_arguments.size.height >> 8);
-    output.push_back(this->_arguments.size.height & 0xFF);
-    output.push_back(this->_arguments.size.width >> 8);
-    output.push_back(this->_arguments.size.width & 0xFF);
-    output.push_back(3);
+    output.emplace_back(this->_arguments.size.height >> 8);
+    output.emplace_back(this->_arguments.size.height & 0xFF);
+    output.emplace_back(this->_arguments.size.width >> 8);
+    output.emplace_back(this->_arguments.size.width & 0xFF);
+    output.emplace_back(3);
     for (auto id = 1; id <= 3; ++id) {
-        output.push_back(id);
-        output.push_back(0x11);
-        output.push_back((id ==  1) ? 0 : 1);
+        output.emplace_back(id);
+        output.emplace_back(0x11);
+        output.emplace_back((id ==  1) ? 0 : 1);
     }
 }
 
@@ -301,13 +301,13 @@ void AbstractMJPEGEncoder::writeScanInfo(
 ) {
     // start of scan
     addMarker(output, 0xDA, 2+1+2*3+3);
-    output.push_back(3);
+    output.emplace_back(3);
     for (auto id = 1; id <= 3; ++id) {
-        output.push_back(id);
-        output.push_back((id == 1) ? 0x00 : 0x11);
+        output.emplace_back(id);
+        output.emplace_back((id == 1) ? 0x00 : 0x11);
     }
     static const uint8_t Spectral[3] = { 0, 63, 0 }; // spectral selection: must be from 0 to 63; successive approximation must be 0
-    for (auto i = 0; i < 3; ++i) output.push_back(Spectral[i]);
+    for (auto i = 0; i < 3; ++i) output.emplace_back(Spectral[i]);
 }
 
 void AbstractMJPEGEncoder::initJpegTable() {

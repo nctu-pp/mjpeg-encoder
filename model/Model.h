@@ -14,6 +14,8 @@ namespace model {
         unsigned int width;
     } Size;
 
+    typedef float JpegBlockType[8][8];
+
     namespace color {
         typedef union alignas(4) RGBA_s {
             struct color_s {
@@ -72,13 +74,16 @@ namespace model {
         };
     }
 
-    struct BitCode
+    class BitCode
     {
+    public:
         BitCode() = default; // undefined state, must be initialized at a later time
         BitCode(uint16_t code_, uint8_t numBits_)
         : code(code_), numBits(numBits_) {}
         uint16_t code;       // JPEG's Huffman codes are limited to 16 bits
         uint8_t  numBits;    // number of valid bits
+        BitCode(BitCode const&) = delete;
+        // BitCode& operator=(BitCode const&) = delete;
     };
 
     typedef enum ImplKind_e {

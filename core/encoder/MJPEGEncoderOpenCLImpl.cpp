@@ -17,12 +17,12 @@ MJPEGEncoderOpenCLImpl::MJPEGEncoderOpenCLImpl(const Arguments &arguments)
     this->_clCmdQueue = nullptr;
     this->_maxWorkGroupSize = 0;
 
-    if (_writeIntermediateResult) {
-        writeBuffer(
-                _arguments.tmpDir + "/yuv444.raw",
-                nullptr, 0
-        );
-    }
+    // if (_writeIntermediateResult) {
+    //     writeBuffer(
+    //             _arguments.tmpDir + "/yuv444.raw",
+    //             nullptr, 0
+    //     );
+    // }
 }
 
 void MJPEGEncoderOpenCLImpl::encodeJpeg(
@@ -344,7 +344,7 @@ void MJPEGEncoderOpenCLImpl::start() {
             &outputSize
     };
 
-    string yuvDataTmpPath = _arguments.tmpDir + "/yuv444.raw";
+//     string yuvDataTmpPath = _arguments.tmpDir + "/yuv444.raw";
     for (size_t frameNo = 0; frameNo < totalFrames; frameNo += maxBatchFrames) {
         int readFrameCnt = videoReader.readFrame(buffer, maxBatchFrames);
         outputBuffer.clear();
@@ -367,38 +367,38 @@ void MJPEGEncoderOpenCLImpl::start() {
                 outputBuffer,
                 passData
         );
-        
-        if (_writeIntermediateResult) {
-            size_t dataSize = readFrameCnt * totalPixels * sizeof(color::YCbCr444::ChannelData);
-            memset(hYChannel, '\0', dataSize);
-            memset(hCbChannel, '\0', dataSize);
-            memset(hCrChannel, '\0', dataSize);
-            _clCmdQueue->enqueueReadBuffer(dYChannelBuffer, CL_TRUE,
-                                           0, dataSize,
-                                           hYChannel);
-            _clCmdQueue->enqueueReadBuffer(dCbChannelBuffer, CL_TRUE,
-                                           0, dataSize,
-                                           hCbChannel);
-            _clCmdQueue->enqueueReadBuffer(dCrChannelBuffer, CL_TRUE,
-                                           0, dataSize,
-                                           hCrChannel);
 
-            for (auto j = 0; j < readFrameCnt; j++) {
-                auto offset = totalPixels * j;
-                writeBuffer(yuvDataTmpPath,
-                            (char*)(hYChannel + offset), totalPixels,
-                            true
-                );
-                writeBuffer(yuvDataTmpPath,
-                            (char*)(hCbChannel + offset), totalPixels,
-                            true
-                );
-                writeBuffer(yuvDataTmpPath,
-                            (char*)(hCrChannel + offset), totalPixels,
-                            true
-                );
-            }
-        }
+//        if (_writeIntermediateResult) {
+//            size_t dataSize = readFrameCnt * totalPixels * sizeof(color::YCbCr444::ChannelData);
+//            memset(hYChannel, '\0', dataSize);
+//            memset(hCbChannel, '\0', dataSize);
+//            memset(hCrChannel, '\0', dataSize);
+//            _clCmdQueue->enqueueReadBuffer(dYChannelBuffer, CL_TRUE,
+//                                           0, dataSize,
+//                                           hYChannel);
+//            _clCmdQueue->enqueueReadBuffer(dCbChannelBuffer, CL_TRUE,
+//                                           0, dataSize,
+//                                           hCbChannel);
+//            _clCmdQueue->enqueueReadBuffer(dCrChannelBuffer, CL_TRUE,
+//                                           0, dataSize,
+//                                           hCrChannel);
+//
+//            for (auto j = 0; j < readFrameCnt; j++) {
+//                auto offset = totalPixels * j;
+//                writeBuffer(yuvDataTmpPath,
+//                            (char*)(hYChannel + offset), totalPixels,
+//                            true
+//                );
+//                writeBuffer(yuvDataTmpPath,
+//                            (char*)(hCbChannel + offset), totalPixels,
+//                            true
+//                );
+//                writeBuffer(yuvDataTmpPath,
+//                            (char*)(hCrChannel + offset), totalPixels,
+//                            true
+//                );
+//            }
+//        }
 
         // for (int i = 0; i < outputSize.size(); ++i)
         //     cout << outputSize[i] << " ";
@@ -485,13 +485,13 @@ void MJPEGEncoderOpenCLImpl::bootstrap() {
 //    _maxWorkItems[1] = 128;
     _maxWorkGroupSize = firstMatchDevice->getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
 
-    _context = new cl::Context(*_device);
+    _context = new cl::Context({*_device});
 
     string kernelCode = readClKernelFile("jpeg-encoder.cl");
 
     _program = new cl::Program(*_context, kernelCode);
 
-    auto buildRet = _program->build(devices);
+    auto buildRet = _program->build({*_device});
     if (buildRet == CL_BUILD_PROGRAM_FAILURE) {
         auto buildInfo = _program->getBuildInfo<CL_PROGRAM_BUILD_LOG>(*_device);
         cerr << buildInfo << endl;

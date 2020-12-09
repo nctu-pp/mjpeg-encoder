@@ -72,6 +72,12 @@ void MJPEGEncoderOpenMPImpl::start() {
     writeHuffmanTable(headerOutputBuffer);
     writeScanInfo(headerOutputBuffer);
 
+    // init local variables
+    for(auto i = 0; i < maxThreads; i++) {
+        // 2 MB
+        outputBuffer[i].reserve(2 * 1024 * 1024);
+    }
+
     aviOutputStream.start();
  
     auto totalSeconds = Utils::getCurrentTimestamp(
@@ -83,23 +89,21 @@ void MJPEGEncoderOpenMPImpl::start() {
     for (size_t frameNo = 0; frameNo < totalFrames; frameNo+=maxThreads) {
         int remain = (frameNo + maxThreads > totalFrames)?(maxThreads + frameNo - totalFrames):0;
         #pragma omp parallel for
-        {
-            for(int i = 0 ; i < maxThreads; i++){
-                int tid = omp_get_thread_num();
-                int readFrameNo = videoReaderArr[tid]->readFrame(frameNo+tid, bufferArr[tid], 1);
+        for(int i = 0 ; i < maxThreads; i++){
+            int tid = omp_get_thread_num();
+            int readFrameNo = videoReaderArr[tid]->readFrame(frameNo+tid, bufferArr[tid], 1);
 
-				outputBuffer[tid].assign(headerOutputBuffer.begin(), headerOutputBuffer.end());
-				
-                void *passData[] = {
-                    yuvFrameBuffer[tid],
-                    nullptr,
-                };
-                this->encodeJpeg(
-                        (color::RGBA *) bufferArr[tid], totalPixels,
-                        outputBuffer[tid],
-                        passData
-                );
-            }
+            outputBuffer[tid].assign(headerOutputBuffer.begin(), headerOutputBuffer.end());
+            
+            void *passData[] = {
+                yuvFrameBuffer[tid],
+                nullptr,
+            };
+            this->encodeJpeg(
+                    (color::RGBA *) bufferArr[tid], totalPixels,
+                    outputBuffer[tid],
+                    passData
+            );
         }
 
         // cout << _arguments.tmpDir << endl;
@@ -200,8 +204,8 @@ void MJPEGEncoderOpenMPImpl::encodeJpeg(color::RGBA *originalData, int length, v
 
     writeBitCode(output, BitCode(0x7F, 7), localBitBuffer);
     
-    output.push_back(0xFF);
-    output.push_back(0xD9);
+    output.emplace_back(0xFF);
+    output.emplace_back(0xD9);
 }
 
 int16_t MJPEGEncoderOpenMPImpl::encodeBlock(vector<char>& output, float block[8][8], const float scaled[8*8], int16_t lastDC,
@@ -243,7 +247,7 @@ int16_t MJPEGEncoderOpenMPImpl::encodeBlock(vector<char>& output, float block[8]
         writeBitCode(output, huffmanDC[0x00], bitBuffer);
     else
     {
-        auto bits = codewords[diff]; // nope, encode the difference to previous block's average color
+        auto& bits = codewords[diff]; // nope, encode the difference to previous block's average color
         writeBitCode(output, huffmanDC[bits.numBits], bitBuffer);
         writeBitCode(output, bits, bitBuffer);
     }
@@ -260,13 +264,13 @@ int16_t MJPEGEncoderOpenMPImpl::encodeBlock(vector<char>& output, float block[8]
             if (offset > 0xF0) // remember, the counter is in the upper 4 bits, 0xF = 15
             {
                 writeBitCode(output, huffmanAC[0xF0], bitBuffer);
-                // bitCodeBuffer.push_back(huffmanAC[0xF0]);
+                // bitCodeBuffer.emplace_back(huffmanAC[0xF0]);
                 offset = 0;
             }
             i++;
         }
 
-        auto encoded = codewords[quantized[i]];
+        auto& encoded = codewords[quantized[i]];
         // combine number of zeros with the number of bits of the next non-zero value
         writeBitCode(output, huffmanAC[offset + encoded.numBits], bitBuffer);
         writeBitCode(output, encoded, bitBuffer);
