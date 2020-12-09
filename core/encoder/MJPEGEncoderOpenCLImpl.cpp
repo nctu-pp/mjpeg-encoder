@@ -38,9 +38,22 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     auto dCrChannelBuffer = (cl::Buffer *) sharedData[argc++];
 
     auto clPaddingAndTransformColorSpace = (cl::Kernel *) sharedData[argc++];
-    auto totalPixels = *((size_t *) sharedData[argc++]);
+    auto totalPixels = ((size_t *) sharedData[argc++]);
     auto dimPtr = (cl::NDRange *) sharedData[argc++];
 
+    auto clDoDCT = (cl::Kernel *) sharedData[argc++];
+    auto blockDimPtr = (cl::NDRange *) sharedData[argc++];
+
+    auto dOtherArgs = (cl::Buffer *) sharedData[argc++];
+    auto dYChannelOutBuffer = (cl::Buffer *) sharedData[argc++];
+    auto dCbChannelOutBuffer = (cl::Buffer *) sharedData[argc++];
+    auto dCrChannelOutBuffer = (cl::Buffer *) sharedData[argc++];
+
+    auto batchDataSizeOneChannel = (unsigned long*) sharedData[argc++];
+
+    auto readFrameCnt = (int*) sharedData[argc++];
+    auto scaled = (cl::Buffer *) sharedData[argc++];
+    auto outputSize = (vector<int> *) sharedData[argc++];
     cl_int err = 0;
 
     // copy rgba data to kernel
@@ -53,11 +66,160 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
             *dimPtr,
             cl::NullRange
     );
-
     this->dieIfClError(err, __LINE__);
 
-
     // TODO: convert to jpeg in opencl
+    clDoDCT->setArg(0, *dOtherArgs);
+    clDoDCT->setArg(1, *dYChannelBuffer);
+    clDoDCT->setArg(2, *dYChannelOutBuffer);
+    clDoDCT->setArg(3, *scaled);
+
+    err = this->_clCmdQueue->enqueueWriteBuffer(*scaled, CL_TRUE, 0, 64*sizeof(float), (float *) _scaledLuminance);
+    this->dieIfClError(err, __LINE__);
+
+    err = this->_clCmdQueue->enqueueNDRangeKernel(
+            *clDoDCT,
+            cl::NullRange,
+            // cl::NDRange(1),
+            *blockDimPtr,
+            cl::NullRange
+    );
+    this->dieIfClError(err, __LINE__);
+// return;
+    clDoDCT->setArg(0, *dOtherArgs);
+    clDoDCT->setArg(1, *dCbChannelBuffer);
+    clDoDCT->setArg(2, *dCbChannelOutBuffer);
+    clDoDCT->setArg(3, *scaled);
+    err = this->_clCmdQueue->enqueueWriteBuffer(*scaled, CL_TRUE, 0, 64*sizeof(float), (float *) _scaledChrominance);
+    this->dieIfClError(err, __LINE__);
+
+    err = this->_clCmdQueue->enqueueNDRangeKernel(
+            *clDoDCT,
+            cl::NullRange,
+            // cl::NDRange(1),
+            *blockDimPtr,
+            cl::NullRange
+    );
+    this->dieIfClError(err, __LINE__);
+
+    clDoDCT->setArg(0, *dOtherArgs);
+    clDoDCT->setArg(1, *dCrChannelBuffer);
+    clDoDCT->setArg(2, *dCrChannelOutBuffer);
+    clDoDCT->setArg(3, *scaled);
+    err = this->_clCmdQueue->enqueueWriteBuffer(*scaled, CL_TRUE, 0, 64*sizeof(float), (float *) _scaledChrominance);
+    this->dieIfClError(err, __LINE__);
+    err = this->_clCmdQueue->enqueueNDRangeKernel(
+            *clDoDCT,
+            cl::NullRange,
+            // cl::NDRange(1),
+            *blockDimPtr,
+            cl::NullRange
+    );
+    this->dieIfClError(err, __LINE__);   
+
+    auto hYOutChannel = new float[*batchDataSizeOneChannel];
+    auto hCbOutChannel = new float[*batchDataSizeOneChannel];
+    auto hCrOutChannel = new float[*batchDataSizeOneChannel];
+
+    size_t dataSize = (*readFrameCnt) * (this->_cachedPaddingSize).width * (this->_cachedPaddingSize).height * sizeof(float);
+    
+    _clCmdQueue->enqueueReadBuffer(*dYChannelOutBuffer, CL_TRUE,
+                                    0, dataSize,
+                                    (float *) hYOutChannel);
+    _clCmdQueue->enqueueReadBuffer(*dCbChannelOutBuffer, CL_TRUE,
+                                    0, dataSize,
+                                    (float *) hCbOutChannel);
+    _clCmdQueue->enqueueReadBuffer(*dCrChannelOutBuffer, CL_TRUE,
+                                    0, dataSize,
+                                    (float *) hCrOutChannel);
+    // for (int i = 0; i < 8; ++i) {
+    //     for (int j = 0; j < 8; ++j)
+    //         cout << hYOutChannel[i*this->_cachedPaddingSize.width+j] << " ";
+    // }
+    // cout << endl << endl;
+    
+    // precompute JPEG codewords for quantized DCT
+    BitCode  codewordsArray[2 * CodeWordLimit];          // note: quantized[i] is found at codewordsArray[quantized[i] + CodeWordLimit]
+    BitCode* codewords = &codewordsArray[CodeWordLimit]; // allow negative indices, so quantized[i] is at codewords[quantized[i]]
+    uint8_t numBits = 1; // each codeword has at least one bit (value == 0 is undefined)
+    int32_t mask    = 1; // mask is always 2^numBits - 1, initial value 2^1-1 = 2-1 = 1
+    for (int16_t value = 1; value < CodeWordLimit; value++)
+    {
+        // numBits = position of highest set bit (ignoring the sign)
+        // mask    = (2^numBits) - 1
+        if (value > mask) // one more bit ?
+        {
+            numBits++;
+            mask = (mask << 1) | 1; // append a set bit
+        }
+        codewords[-value] = BitCode(mask - value, numBits); // note that I use a negative index => codewords[-value] = codewordsArray[CodeWordLimit  value]
+        codewords[+value] = BitCode(       value, numBits);
+    }
+
+    auto maxWidth = (this->_cachedPaddingSize).width;
+    auto maxHeight = (this->_cachedPaddingSize).height;
+    int current = 0;
+
+    for (auto j = 0; j < (*readFrameCnt); j++) {
+        auto offset = (this->_cachedPaddingSize).width * (this->_cachedPaddingSize).height * j;
+        _bitBuffer.init();
+        writeJFIFHeader(output);
+        writeQuantizationTable(output, _quantLuminance, _quantChrominance);
+        // write infos: SOF0 - start of frame
+        writeImageInfos(output);
+        writeHuffmanTable(output);
+        writeScanInfo(output);
+        int16_t lastYDC = 0, lastCbDC = 0, lastCrDC = 0;
+        float Y[8][8], Cb[8][8], Cr[8][8];
+        for (auto mcuY = 0; mcuY < maxHeight; mcuY += 8) { // each step is either 8 or 16 (=mcuSize)
+            for (auto mcuX = 0; mcuX < maxWidth; mcuX += 8) {
+
+                copy(hYOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*0, hYOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*0+8, Y[0]);
+                copy(hYOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*1, hYOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*1+8, Y[1]);
+                copy(hYOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*2, hYOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*2+8, Y[2]);
+                copy(hYOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*3, hYOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*3+8, Y[3]);
+                copy(hYOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*4, hYOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*4+8, Y[4]);
+                copy(hYOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*5, hYOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*5+8, Y[5]);
+                copy(hYOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*6, hYOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*6+8, Y[6]);
+                copy(hYOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*7, hYOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*7+8, Y[7]);
+//                 for (int a = 0; a < 8; ++a) {
+//                     for (int b = 0; b < 8; ++b) {
+//                         cout << Y[a][b] << " ";
+//                     }
+//                     cout << endl;
+//                 }
+//                 cout << endl << endl;
+// break;                
+                copy(hCbOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*0, hCbOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*0+8, Cb[0]);
+                copy(hCbOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*1, hCbOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*1+8, Cb[1]);
+                copy(hCbOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*2, hCbOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*2+8, Cb[2]);
+                copy(hCbOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*3, hCbOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*3+8, Cb[3]);
+                copy(hCbOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*4, hCbOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*4+8, Cb[4]);
+                copy(hCbOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*5, hCbOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*5+8, Cb[5]);
+                copy(hCbOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*6, hCbOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*6+8, Cb[6]);
+                copy(hCbOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*7, hCbOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*7+8, Cb[7]);
+
+                copy(hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*0, hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*0+8, Cr[0]);
+                copy(hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*1, hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*1+8, Cr[1]);
+                copy(hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*2, hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*2+8, Cr[2]);
+                copy(hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*3, hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*3+8, Cr[3]);
+                copy(hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*4, hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*4+8, Cr[4]);
+                copy(hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*5, hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*5+8, Cr[5]);
+                copy(hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*6, hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*6+8, Cr[6]);
+                copy(hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*7, hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*7+8, Cr[7]);
+
+                lastYDC = encodeBlock(output, Y, lastYDC, _huffmanLuminanceDC, _huffmanLuminanceAC, codewords);
+                lastCbDC = encodeBlock(output, Cb, lastCbDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords);
+                lastCrDC = encodeBlock(output, Cr, lastCrDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords);
+            }
+        }
+        writeBitCode(output, BitCode(0x7F, 7), _bitBuffer);
+        output.push_back(0xFF);
+        output.push_back(0xD9);
+        
+        outputSize->push_back(output.size()-current);
+        current = output.size();
+    }
 }
 
 void MJPEGEncoderOpenCLImpl::start() {
@@ -91,6 +253,7 @@ void MJPEGEncoderOpenCLImpl::start() {
 
     // share outputBuffer to reduce re-alloc
     vector<char> outputBuffer;
+    vector<int> outputSize;
 
     aviOutputStream.start();
 
@@ -123,12 +286,18 @@ void MJPEGEncoderOpenCLImpl::start() {
     auto hCbChannel = new color::YCbCr444::ChannelData[batchDataSizeOneChannel];
     auto hCrChannel = new color::YCbCr444::ChannelData[batchDataSizeOneChannel];
 
-
     // init opencl buffer
     cl::Buffer dRgbaBuffer(*_context, CL_MEM_READ_ONLY, originalRgbFrameSize * maxBatchFrames);
     cl::Buffer dYChannelBuffer(*_context, CL_MEM_READ_WRITE, sizeof(color::YCbCr444::ChannelData) * batchDataSizeOneChannel);
     cl::Buffer dCbChannelBuffer(*_context, CL_MEM_READ_WRITE, sizeof(color::YCbCr444::ChannelData) * batchDataSizeOneChannel);
     cl::Buffer dCrChannelBuffer(*_context, CL_MEM_READ_WRITE, sizeof(color::YCbCr444::ChannelData) * batchDataSizeOneChannel);
+
+    cl::Buffer dYChannelOutBuffer(*_context, CL_MEM_READ_WRITE, sizeof(float) * batchDataSizeOneChannel);
+    cl::Buffer dCbChannelOutBuffer(*_context, CL_MEM_READ_WRITE, sizeof(float) * batchDataSizeOneChannel);
+    cl::Buffer dCrChannelOutBuffer(*_context, CL_MEM_READ_WRITE, sizeof(float) * batchDataSizeOneChannel);
+    cl::Buffer scaled(*_context, CL_MEM_READ_ONLY, sizeof(float) * 64);
+
+
     cl::Buffer dOtherArgs(
             *_context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
             sizeof(int) * paddingKernelArgs.size(),
@@ -137,6 +306,7 @@ void MJPEGEncoderOpenCLImpl::start() {
 
     // cl program
     cl::Kernel clPaddingAndTransformColorSpace(*_program, "paddingAndTransformColorSpace");
+    cl::Kernel clDoDCT(*_program, "doDCT");
     unsigned int transformArgc = 0;
     clPaddingAndTransformColorSpace.setArg(transformArgc++, dRgbaBuffer);
 
@@ -160,25 +330,44 @@ void MJPEGEncoderOpenCLImpl::start() {
 
             &copiedTotalPixels,
             nullptr, // 6
-            nullptr,
+            &clDoDCT,
+            nullptr, // 8
+            &dOtherArgs,
+
+            &dYChannelOutBuffer,
+            &dCbChannelOutBuffer,
+            &dCrChannelOutBuffer,
+
+            &batchDataSizeOneChannel,
+            nullptr, // 14
+            &scaled,
+            &outputSize
     };
 
     string yuvDataTmpPath = _arguments.tmpDir + "/yuv444.raw";
     for (size_t frameNo = 0; frameNo < totalFrames; frameNo += maxBatchFrames) {
         int readFrameCnt = videoReader.readFrame(buffer, maxBatchFrames);
         outputBuffer.clear();
+        outputSize.clear();
 
         cl::NDRange globalSize(groupWidth, groupHeight,
                                readFrameCnt * (extraNeedBatchPerFrameX * extraNeedBatchPerFrameY));
 
         passData[6] = &globalSize;
+        // cout << groupWidth << " " << groupHeight << " " << readFrameCnt << " " << extraNeedBatchPerFrameX << " " << extraNeedBatchPerFrameY << endl;
+
+        cl::NDRange globalBlockSize(groupWidth/8, groupHeight/8,
+                               readFrameCnt * (extraNeedBatchPerFrameX * extraNeedBatchPerFrameY));
+        passData[8] = &globalBlockSize;
+
+        passData[14] = &readFrameCnt;
 
         this->encodeJpeg(
                 (color::RGBA *) buffer, originalRgbFrameSize * readFrameCnt,
                 outputBuffer,
                 passData
         );
-
+        
         if (_writeIntermediateResult) {
             size_t dataSize = readFrameCnt * totalPixels * sizeof(color::YCbCr444::ChannelData);
             memset(hYChannel, '\0', dataSize);
@@ -211,7 +400,15 @@ void MJPEGEncoderOpenCLImpl::start() {
             }
         }
 
-        aviOutputStream.writeFrame(outputBuffer.data(), outputBuffer.size());
+        // for (int i = 0; i < outputSize.size(); ++i)
+        //     cout << outputSize[i] << " ";
+        // cout << endl << endl;
+
+        long cnt = 0;
+        for (auto j = 0; j < readFrameCnt; ++j) {
+            aviOutputStream.writeFrame(outputBuffer.data()+cnt, outputSize[j]);
+            cnt += outputSize[j];
+        }
 
         auto currentTime = Utils::getCurrentTimestamp(frameNo + readFrameCnt - 1, videoReader.getTotalFrames(),
                                                       _arguments.fps);
