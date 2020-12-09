@@ -16,6 +16,7 @@ MJPEGEncoderOpenCLImpl::MJPEGEncoderOpenCLImpl(const Arguments &arguments)
     this->_program = nullptr;
     this->_clCmdQueue = nullptr;
     this->_maxWorkGroupSize = 0;
+    this->_maxMemoryAllocSize = 0;
 
     // if (_writeIntermediateResult) {
     //     writeBuffer(
@@ -484,6 +485,7 @@ void MJPEGEncoderOpenCLImpl::bootstrap() {
 //    _maxWorkItems[0] = 128;
 //    _maxWorkItems[1] = 128;
     _maxWorkGroupSize = firstMatchDevice->getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
+    _maxMemoryAllocSize = firstMatchDevice->getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>();
 
     _context = new cl::Context({*_device});
 

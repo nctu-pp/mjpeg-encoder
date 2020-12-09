@@ -36,6 +36,7 @@ namespace core::encoder {
         cl::Program* _program;
         cl::CommandQueue* _clCmdQueue;
         cl_int _maxWorkGroupSize;
+        cl_ulong _maxMemoryAllocSize;
         vector<cl_ulong> _maxWorkItems;
 
         void dieIfClError(cl_int err, int line = 0);

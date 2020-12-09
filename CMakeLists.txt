@@ -11,7 +11,11 @@ find_package(OpenMP REQUIRED)
 set(COMMON_COMPILE_FLAGS "-mavx -mfma -ffast-math -m64 -mavx2")
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    # set(COMMON_COMPILE_FLAGS "${COMMON_COMPILE_FLAGS} -Rpass=loop-vectorize -Rpass-missed=loop-vectorize -Rpass-analysis=loop-vectorize")
+    set(COMMON_COMPILE_FLAGS "${COMMON_COMPILE_FLAGS} -Rpass-missed=loop-vectorize -Rpass-analysis=loop-vectorize")
+
+    if (CMAKE_BUILD_TYPE STREQUAL Debug)
+        set(COMMON_COMPILE_FLAGS "-fno-limit-debug-info")
+    endif()
 endif ()
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_COMPILE_FLAGS} ${OpenMP_C_FLAGS}")
