@@ -129,9 +129,9 @@ int main(int argc, char **argv) {
             auto elapsed_time =
                     (std::chrono::duration_cast<std::chrono::nanoseconds>(stop_time - start_time));
 
-            double avg_time_per_transfer = (double) (elapsed_time.count()) / (1e9 * (double) loop_count);
+            double avg_time_per_transfer = (double) (elapsed_time.count()) / ((double) loop_count);
 
-            sprintf(timeBuffer, "%10li\t%15.9f", num_B, avg_time_per_transfer);
+            sprintf(timeBuffer, "%10li\t%15.30f", num_B, avg_time_per_transfer);
 
             outSS << timeBuffer << endl;
         } while (false);
@@ -161,9 +161,9 @@ int main(int argc, char **argv) {
 
             auto elapsed_time =
                     (std::chrono::duration_cast<std::chrono::nanoseconds>(stop_time - start_time));
-            double avg_time_per_transfer = (double) (elapsed_time.count()) / (1e9 * (double) loop_count);
+            double avg_time_per_transfer = (double) (elapsed_time.count()) / ((double) loop_count);
 
-            sprintf(timeBuffer, "%10li\t%15.9f", num_B, avg_time_per_transfer);
+            sprintf(timeBuffer, "%10li\t%15.30f", num_B, avg_time_per_transfer);
 
             outSS << timeBuffer << endl;
         } while (false);
