@@ -55,6 +55,13 @@ add_executable(
         main.cpp
 )
 
+add_executable(
+        cl_ping_pong
+        cl_ping_pong.cpp
+        core/Utils.h
+        core/Utils.cpp
+)
+
 add_library(hook_amd_opencl SHARED hook/hook-amd-opencl.c)
 add_library(hook_nvidia_opencl SHARED hook/hook-nvidia-opencl.c)
 
@@ -66,6 +73,10 @@ if(OpenCL_FOUND)
     target_link_libraries(
             mjpeg_encoder
             OpenMP::OpenMP_CXX
+            OpenCL::OpenCL
+    )
+    target_link_libraries(
+            cl_ping_pong
             OpenCL::OpenCL
     )
 else()
