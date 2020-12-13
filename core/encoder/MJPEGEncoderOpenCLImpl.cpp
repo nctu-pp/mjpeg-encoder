@@ -123,7 +123,6 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     auto hCrOutChannel = new float[*batchDataSizeOneChannel];
 
     size_t dataSize = (*readFrameCnt) * (this->_cachedPaddingSize).width * (this->_cachedPaddingSize).height * sizeof(float);
-    
     _clCmdQueue->enqueueReadBuffer(*dYChannelOutBuffer, CL_TRUE,
                                     0, dataSize,
                                     (float *) hYOutChannel);
@@ -163,6 +162,8 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
 
     for (auto j = 0; j < (*readFrameCnt); j++) {
         auto offset = (this->_cachedPaddingSize).width * (this->_cachedPaddingSize).height * j;
+        // TODO: move _bitBuffer to private
+        BitBuffer _bitBuffer;
         _bitBuffer.init();
         writeJFIFHeader(output);
         writeQuantizationTable(output, _quantLuminance, _quantChrominance);
@@ -209,9 +210,9 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
                 copy(hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*6, hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*6+8, Cr[6]);
                 copy(hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*7, hCrOutChannel+offset+mcuY*maxWidth+mcuX+maxWidth*7+8, Cr[7]);
 
-                lastYDC = encodeBlock(output, Y, lastYDC, _huffmanLuminanceDC, _huffmanLuminanceAC, codewords);
-                lastCbDC = encodeBlock(output, Cb, lastCbDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords);
-                lastCrDC = encodeBlock(output, Cr, lastCrDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords);
+                lastYDC = encodeBlock(output, _bitBuffer, Y, lastYDC, _huffmanLuminanceDC, _huffmanLuminanceAC, codewords);
+                lastCbDC = encodeBlock(output,_bitBuffer, Cb, lastCbDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords);
+                lastCrDC = encodeBlock(output, _bitBuffer, Cr, lastCrDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords);
             }
         }
         writeBitCode(output, BitCode(0x7F, 7), _bitBuffer);
@@ -414,10 +415,14 @@ void MJPEGEncoderOpenCLImpl::start() {
         auto currentTime = Utils::getCurrentTimestamp(frameNo + readFrameCnt - 1, videoReader.getTotalFrames(),
                                                       _arguments.fps);
         auto currentTimeStr = Utils::formatTimestamp(currentTime);
+
         cout << "\u001B[A" << std::flush
              << "Time: " << Utils::formatTimestamp(currentTime) << " / " << totalTimeStr
              << endl;
     }
+    cout << "\u001B[A" << std::flush
+         << "Time: " << totalTimeStr << " / " << totalTimeStr
+         << endl;
     aviOutputStream.close();
 
     cout << endl

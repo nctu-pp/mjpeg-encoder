@@ -15,8 +15,6 @@ MJPEGEncoderOpenMPImpl::MJPEGEncoderOpenMPImpl(const Arguments &arguments) : Abs
         omp_set_num_threads(arguments.numThreads);
 }
 
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "openmp-use-default-none"
 void MJPEGEncoderOpenMPImpl::start() {
     const auto maxThreads = omp_get_max_threads();
 
@@ -42,13 +40,7 @@ void MJPEGEncoderOpenMPImpl::start() {
     for(int rowIndex = 0; rowIndex < maxThreads; rowIndex++)
         bufferArr[rowIndex] = new char[videoReaderArr[0]->getPerFrameSize()];
 
-    auto paddedBuffer = new char*[maxThreads];
-    for(int rowIndex = 0; rowIndex < maxThreads; rowIndex++)
-        paddedBuffer[rowIndex] = new char[paddedRgbFrameSize];
 
-    auto paddedRgbaPtrArr = new char*[maxThreads];
-    for(int rowIndex = 0; rowIndex < maxThreads; rowIndex++)
-        paddedRgbaPtrArr[rowIndex] = paddedBuffer[rowIndex];
     AVIOutputStream aviOutputStream(_arguments.output);
 
     (&aviOutputStream)
@@ -56,7 +48,6 @@ void MJPEGEncoderOpenMPImpl::start() {
             ->setSize(_arguments.size)
             ->setTotalFrames(videoReaderArr[0]->getTotalFrames());
 
-    //TODO:create an array
     color::YCbCr444 *yuvFrameBuffer[maxThreads];
     for(int i = 0; i < maxThreads; i++)
         yuvFrameBuffer[i] = new color::YCbCr444(this->_cachedPaddingSize);  
@@ -64,13 +55,6 @@ void MJPEGEncoderOpenMPImpl::start() {
 
     // share outputBuffer to reduce re-alloc
     vector<char> outputBuffer[maxThreads];
-	// write header in advance for outputBuffer
-	vector<char> headerOutputBuffer;
-    writeJFIFHeader(headerOutputBuffer);
-    writeQuantizationTable(headerOutputBuffer, _quantLuminance, _quantChrominance);
-    writeImageInfos(headerOutputBuffer);
-    writeHuffmanTable(headerOutputBuffer);
-    writeScanInfo(headerOutputBuffer);
 
     // init local variables
     for(auto i = 0; i < maxThreads; i++) {
@@ -88,19 +72,24 @@ void MJPEGEncoderOpenMPImpl::start() {
     cout << endl;
     for (size_t frameNo = 0; frameNo < totalFrames; frameNo+=maxThreads) {
         int remain = (frameNo + maxThreads > totalFrames)?(maxThreads + frameNo - totalFrames):0;
-        #pragma omp parallel for
+        #pragma omp parallel for simd default(none) \
+            shared( \
+                totalFrames, videoReaderArr, bufferArr, outputBuffer, \
+                yuvFrameBuffer, \
+                maxThreads, \
+                totalPixels, aviOutputStream, totalTimeStr, cout \
+            ) firstprivate(frameNo)
         for(int i = 0 ; i < maxThreads; i++){
             int tid = omp_get_thread_num();
             int readFrameNo = videoReaderArr[tid]->readFrame(frameNo+tid, bufferArr[tid], 1);
 
-            outputBuffer[tid].assign(headerOutputBuffer.begin(), headerOutputBuffer.end());
-            
             void *passData[] = {
                 yuvFrameBuffer[tid],
                 nullptr,
             };
+
             this->encodeJpeg(
-                    (color::RGBA *) bufferArr[tid], totalPixels,
+                    (color::RGBA*)bufferArr[tid], totalPixels,
                     outputBuffer[tid],
                     passData
             );
@@ -115,7 +104,7 @@ void MJPEGEncoderOpenMPImpl::start() {
                 );
             }
             aviOutputStream.writeFrame(outputBuffer[tid].data(), outputBuffer[tid].size());
-        }        
+        }
         auto currentTime = Utils::getCurrentTimestamp(frameNo + 1, videoReaderArr[0]->getTotalFrames(), _arguments.fps);
         auto currentTimeStr = Utils::formatTimestamp(currentTime);
 
@@ -123,6 +112,10 @@ void MJPEGEncoderOpenMPImpl::start() {
            << "Time: " << Utils::formatTimestamp(currentTime) << " / " << totalTimeStr
            << endl;
     }
+
+    cout << "\u001B[A" << std::flush
+         << "Time: " << totalTimeStr << " / " << totalTimeStr
+         << endl;
     aviOutputStream.close();
 
     cout << endl
@@ -131,11 +124,9 @@ void MJPEGEncoderOpenMPImpl::start() {
     for(int i = 0; i < maxThreads; i++){
         delete bufferArr[i];
         delete videoReaderArr[i];
-        delete paddedBuffer[i];
         delete yuvFrameBuffer[i];
     }
 }
-#pragma clang diagnostic pop
 
 void MJPEGEncoderOpenMPImpl::finalize() {
 
@@ -151,6 +142,8 @@ void MJPEGEncoderOpenMPImpl::encodeJpeg(color::RGBA *originalData, int length, v
 
     BitBuffer localBitBuffer;
     localBitBuffer.init();
+
+    output.assign(commonJpegHeader.begin(), commonJpegHeader.end());
 
     // precompute JPEG codewords for quantized DCT
     BitCode  codewordsArray[2 * CodeWordLimit];          // note: quantized[i] is found at codewordsArray[quantized[i] + CodeWordLimit]

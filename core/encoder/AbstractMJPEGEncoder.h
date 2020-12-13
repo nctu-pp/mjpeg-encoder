@@ -35,7 +35,7 @@ namespace core::encoder {
                 color::RGBA *originalData, int length,
                 vector<char> &output,
                 void **sharedData
-        ) = 0;
+        );
 
         inline void encodeJpeg(
                 color::RGBA *originalData, int length,
@@ -59,6 +59,7 @@ namespace core::encoder {
 
         Arguments _arguments;
         Size _cachedPaddingSize{0, 0};
+        vector<char> commonJpegHeader;
 
         static void writeBuffer(const string &path, char *buffer, size_t len, bool append = false);
 
@@ -159,7 +160,7 @@ namespace core::encoder {
         {
                 int32_t data    = 0; // actually only at most 24 bits are used
                 uint8_t numBits = 0; // number of valid bits (the right-most bits)
-                void init() {
+                inline void init() {
                         data = 0;
                         numBits = 0;
                 }
@@ -172,6 +173,7 @@ namespace core::encoder {
 
         virtual int16_t encodeBlock(
                 vector<char>& output,
+                BitBuffer& bitBuffer,
                 float block[8][8],
                 int16_t lastDC,
                 const BitCode huffmanDC[256],
@@ -184,8 +186,6 @@ namespace core::encoder {
                 uint8_t id,
                 uint16_t length
         );
-        
-        BitBuffer _bitBuffer;
 
         void writeBitCode(
                 vector<char>& output,

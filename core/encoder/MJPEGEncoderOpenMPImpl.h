@@ -24,18 +24,19 @@ namespace core::encoder {
         void encodeJpeg(
                 color::RGBA *originalData, int length,
                 vector<char> &output,
-                void** sharedData
+                void **sharedData
         ) override;
 
+    private:
         int16_t encodeBlock(
-                vector<char>& output,
+                vector<char> &output,
                 float block[8][8],
-                const float scaled[8*8],
+                const float scaled[8 * 8],
                 int16_t lastDC,
                 const BitCode huffmanDC[256],
-                const BitCode huffmanAC[256], 
-                const BitCode* codewords,
-                BitBuffer& bitBuffer
+                const BitCode huffmanAC[256],
+                const BitCode *codewords,
+                BitBuffer &bitBuffer
         );
     };
 }

@@ -147,8 +147,11 @@ void AbstractMJPEGEncoder::doDCT(float block[8][8], const float scaled[8*8]) con
         block64[i] *= scaled[i];
 }
 
-int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8], int16_t lastDC,
-                    const BitCode huffmanDC[256], const BitCode huffmanAC[256], const BitCode* codewords)
+int16_t AbstractMJPEGEncoder::encodeBlock(vector<char> &output,
+                                          BitBuffer &bitBuffer,
+                                          float block[8][8], int16_t lastDC,
+                                          const BitCode huffmanDC[256], const BitCode huffmanAC[256],
+                                          const BitCode *codewords)
 {
     auto block64 = (float*) block;
 // cout << "ok0:" << block64[0] << endl;
@@ -171,12 +174,12 @@ int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8
     // same "average color" as previous block ?
     auto diff = DC - lastDC;
     if (diff == 0)
-        writeBitCode(output, huffmanDC[0x00], _bitBuffer);
+        writeBitCode(output, huffmanDC[0x00], bitBuffer);
     else
     {
         auto& bits = codewords[diff]; // nope, encode the difference to previous block's average color
-        writeBitCode(output, huffmanDC[bits.numBits], _bitBuffer);
-        writeBitCode(output, bits, _bitBuffer);
+        writeBitCode(output, huffmanDC[bits.numBits], bitBuffer);
+        writeBitCode(output, bits, bitBuffer);
     }
 // cout << "ok2" << endl;
     // encode ACs (quantized[1..63])
@@ -190,7 +193,7 @@ int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8
             // split into blocks of at most 16 consecutive zeros
             if (offset > 0xF0) // remember, the counter is in the upper 4 bits, 0xF = 15
             {
-                writeBitCode(output, huffmanAC[0xF0], _bitBuffer);
+                writeBitCode(output, huffmanAC[0xF0], bitBuffer);
                 offset = 0;
             }
             i++;
@@ -198,14 +201,14 @@ int16_t AbstractMJPEGEncoder::encodeBlock(vector<char>& output, float block[8][8
 
         auto& encoded = codewords[quantized[i]];
         // combine number of zeros with the number of bits of the next non-zero value
-        writeBitCode(output, huffmanAC[offset + encoded.numBits], _bitBuffer);
-        writeBitCode(output, encoded, _bitBuffer);
+        writeBitCode(output, huffmanAC[offset + encoded.numBits], bitBuffer);
+        writeBitCode(output, encoded, bitBuffer);
         offset = 0;
     }
 
     // send end-of-block code (0x00), only needed if there are trailing zeros
     if (posNonZero < 8*8 - 1) // = 63
-        writeBitCode(output, huffmanAC[0x00], _bitBuffer);
+        writeBitCode(output, huffmanAC[0x00], bitBuffer);
     return DC;
 }
 
@@ -265,17 +268,21 @@ void AbstractMJPEGEncoder::writeHuffmanTable(
 ) {
     addMarker(output, 0xC4, 2+208+208);
     output.emplace_back(0x00);
-    for (auto i = 0; i < 16; ++i) output.emplace_back(DcLuminanceCodesPerBitsize[i]);
-    for (auto i = 0; i < 12; ++i) output.emplace_back(DcLuminanceValues[i]);
+
+    output.insert(output.end(), DcLuminanceCodesPerBitsize, DcLuminanceCodesPerBitsize + 16);
+    output.insert(output.end(), DcLuminanceValues, DcLuminanceValues + 12);
     output.emplace_back(0x10);
-    for (auto i = 0; i < 16; ++i) output.emplace_back(AcLuminanceCodesPerBitsize[i]);
-    for (auto i = 0; i < 162; ++i) output.emplace_back(AcLuminanceValues[i]);
+
+    output.insert(output.end(), AcLuminanceCodesPerBitsize, AcLuminanceCodesPerBitsize + 16);
+    output.insert(output.end(), AcLuminanceValues, AcLuminanceValues + 162);
     output.emplace_back(0x01);
-    for (auto i = 0; i < 16; ++i) output.emplace_back(DcChrominanceCodesPerBitsize[i]);
-    for (auto i = 0; i < 12; ++i) output.emplace_back(DcChrominanceValues[i]);
+
+    output.insert(output.end(), DcChrominanceCodesPerBitsize, DcChrominanceCodesPerBitsize + 16);
+    output.insert(output.end(), DcChrominanceValues, DcChrominanceValues + 12);
     output.emplace_back(0x11);
-    for (auto i = 0; i < 16; ++i) output.emplace_back(AcChrominanceCodesPerBitsize[i]);
-    for (auto i = 0; i < 162; ++i) output.emplace_back(AcChrominanceValues[i]);
+
+    output.insert(output.end(), AcChrominanceCodesPerBitsize, AcChrominanceCodesPerBitsize + 16);
+    output.insert(output.end(), AcChrominanceValues, AcChrominanceValues + 162);
 }
 
 void AbstractMJPEGEncoder::writeImageInfos(
@@ -338,6 +345,12 @@ void AbstractMJPEGEncoder::initJpegTable() {
         _scaledLuminance[ZigZagInv[i]] = factor / _quantLuminance[i];
         _scaledChrominance[ZigZagInv[i]] = factor / _quantChrominance[i];
     }
+
+    writeJFIFHeader(commonJpegHeader);
+    writeQuantizationTable(commonJpegHeader, _quantLuminance, _quantChrominance);
+    writeImageInfos(commonJpegHeader);
+    writeHuffmanTable(commonJpegHeader);
+    writeScanInfo(commonJpegHeader);
 }
 
 void AbstractMJPEGEncoder::transformColorSpace(
@@ -375,4 +388,99 @@ void AbstractMJPEGEncoder::transformColorSpace(
             crChannelBase[col + offset] = (crF);
         }
     }
+}
+
+void AbstractMJPEGEncoder::encodeJpeg(
+        color::RGBA *originalData, int length,
+        vector<char> &output,
+        void **sharedData
+) {
+    auto yuvFrameBuffer = static_cast<color::YCbCr444 *>(sharedData[0]);
+    transformColorSpace(originalData, *yuvFrameBuffer, this->_arguments.size, this->_cachedPaddingSize);
+
+    BitBuffer& _bitBuffer = *(static_cast<BitBuffer*>(sharedData[4]));
+    _bitBuffer.init();
+
+    output.assign(commonJpegHeader.begin(), commonJpegHeader.end());
+
+    // precompute JPEG codewords for quantized DCT
+    BitCode  codewordsArray[2 * CodeWordLimit];          // note: quantized[i] is found at codewordsArray[quantized[i] + CodeWordLimit]
+    BitCode* codewords = &codewordsArray[CodeWordLimit]; // allow negative indices, so quantized[i] is at codewords[quantized[i]]
+    uint8_t numBits = 1; // each codeword has at least one bit (value == 0 is undefined)
+    int32_t mask    = 1; // mask is always 2^numBits - 1, initial value 2^1-1 = 2-1 = 1
+    for (int16_t value = 1; value < CodeWordLimit; value++)
+    {
+        // numBits = position of highest set bit (ignoring the sign)
+        // mask    = (2^numBits) - 1
+        if (value > mask) // one more bit ?
+        {
+            numBits++;
+            mask = (mask << 1) | 1; // append a set bit
+        }
+        codewords[-value] = BitCode(mask - value, numBits); // note that I use a negative index => codewords[-value] = codewordsArray[CodeWordLimit  value]
+        codewords[+value] = BitCode(       value, numBits);
+    }
+
+    // average color of the previous MCU
+    int16_t lastYDC = 0, lastCbDC = 0, lastCrDC = 0;
+    const auto maxWidth = (this->_cachedPaddingSize).width;
+    const auto maxHeight = (this->_cachedPaddingSize).height;
+    const int number_of_blocks = (maxHeight >> 3) * (maxWidth >> 3);
+
+    const auto blockAlign = 8 * 8 * sizeof(float);
+
+    auto yBlock = static_cast<JpegBlockType*>(__builtin_assume_aligned(sharedData[1], blockAlign));
+    auto cbBlock = static_cast<JpegBlockType*>(__builtin_assume_aligned(sharedData[2], blockAlign));
+    auto crBlock = static_cast<JpegBlockType*>(__builtin_assume_aligned(sharedData[3], blockAlign));
+
+    const size_t blockRowSize = sizeof(float) << 3;
+
+    for (auto mcuY = 0; mcuY < maxHeight; mcuY += 8) { // each step is either 8 or 16 (=mcuSize)
+        for (auto mcuX = 0; mcuX < maxWidth; mcuX += 8) {
+            int offset = mcuY * maxWidth + mcuX;
+            int index = (mcuY >> 3) * (maxWidth >> 3) + (mcuX >> 3);
+
+            memcpy(yBlock[index][0], yuvFrameBuffer->getYChannel() + maxWidth * 0 + offset, blockRowSize);
+            memcpy(yBlock[index][1], yuvFrameBuffer->getYChannel() + maxWidth * 1 + offset, blockRowSize);
+            memcpy(yBlock[index][2], yuvFrameBuffer->getYChannel() + maxWidth * 2 + offset, blockRowSize);
+            memcpy(yBlock[index][3], yuvFrameBuffer->getYChannel() + maxWidth * 3 + offset, blockRowSize);
+            memcpy(yBlock[index][4], yuvFrameBuffer->getYChannel() + maxWidth * 4 + offset, blockRowSize);
+            memcpy(yBlock[index][5], yuvFrameBuffer->getYChannel() + maxWidth * 5 + offset, blockRowSize);
+            memcpy(yBlock[index][6], yuvFrameBuffer->getYChannel() + maxWidth * 6 + offset, blockRowSize);
+            memcpy(yBlock[index][7], yuvFrameBuffer->getYChannel() + maxWidth * 7 + offset, blockRowSize);
+
+            memcpy(cbBlock[index][0], yuvFrameBuffer->getCbChannel() + maxWidth * 0 + offset, blockRowSize);
+            memcpy(cbBlock[index][1], yuvFrameBuffer->getCbChannel() + maxWidth * 1 + offset, blockRowSize);
+            memcpy(cbBlock[index][2], yuvFrameBuffer->getCbChannel() + maxWidth * 2 + offset, blockRowSize);
+            memcpy(cbBlock[index][3], yuvFrameBuffer->getCbChannel() + maxWidth * 3 + offset, blockRowSize);
+            memcpy(cbBlock[index][4], yuvFrameBuffer->getCbChannel() + maxWidth * 4 + offset, blockRowSize);
+            memcpy(cbBlock[index][5], yuvFrameBuffer->getCbChannel() + maxWidth * 5 + offset, blockRowSize);
+            memcpy(cbBlock[index][6], yuvFrameBuffer->getCbChannel() + maxWidth * 6 + offset, blockRowSize);
+            memcpy(cbBlock[index][7], yuvFrameBuffer->getCbChannel() + maxWidth * 7 + offset, blockRowSize);
+
+            memcpy(crBlock[index][0], yuvFrameBuffer->getCrChannel() + maxWidth * 0 + offset, blockRowSize);
+            memcpy(crBlock[index][1], yuvFrameBuffer->getCrChannel() + maxWidth * 1 + offset, blockRowSize);
+            memcpy(crBlock[index][2], yuvFrameBuffer->getCrChannel() + maxWidth * 2 + offset, blockRowSize);
+            memcpy(crBlock[index][3], yuvFrameBuffer->getCrChannel() + maxWidth * 3 + offset, blockRowSize);
+            memcpy(crBlock[index][4], yuvFrameBuffer->getCrChannel() + maxWidth * 4 + offset, blockRowSize);
+            memcpy(crBlock[index][5], yuvFrameBuffer->getCrChannel() + maxWidth * 5 + offset, blockRowSize);
+            memcpy(crBlock[index][6], yuvFrameBuffer->getCrChannel() + maxWidth * 6 + offset, blockRowSize);
+            memcpy(crBlock[index][7], yuvFrameBuffer->getCrChannel() + maxWidth * 7 + offset, blockRowSize);
+
+            doDCT(yBlock[index], _scaledLuminance);
+            doDCT(cbBlock[index], _scaledChrominance);
+            doDCT(crBlock[index], _scaledChrominance);
+        } // end mcuX
+    } // end mcuY
+
+    for(int i = 0; i < number_of_blocks; ++i) {
+        lastYDC = encodeBlock(output, _bitBuffer, yBlock[i], lastYDC, _huffmanLuminanceDC, _huffmanLuminanceAC, codewords);
+        lastCbDC = encodeBlock(output,_bitBuffer, cbBlock[i], lastCbDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords);
+        lastCrDC = encodeBlock(output,_bitBuffer, crBlock[i], lastCrDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords);
+    }
+
+    writeBitCode(output, BitCode(0x7F, 7), _bitBuffer);
+
+    output.push_back(0xFF);
+    output.push_back(0xD9);
 }

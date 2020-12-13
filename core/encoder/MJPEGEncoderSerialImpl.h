@@ -19,11 +19,5 @@ namespace core::encoder {
         void start() override;
 
         void finalize() override;
-
-        void encodeJpeg(
-                color::RGBA *originalData, int length,
-                vector<char> &output,
-                void** sharedData
-        ) override;
     };
 }
