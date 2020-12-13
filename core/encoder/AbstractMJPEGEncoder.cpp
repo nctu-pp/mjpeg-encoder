@@ -363,6 +363,10 @@ void AbstractMJPEGEncoder::transformColorSpace(
     auto *__restrict cbChannelBase = yuv444Buffer.getCbChannel();
     auto *__restrict crChannelBase = yuv444Buffer.getCrChannel();
 
+    float localYChannel[totalCols];
+    float localCbChannel[totalCols];
+    float localCrChannel[totalCols];
+
     for (auto row = 0; row < totalRows; row++) {
         auto offset = (totalCols * row);
 
@@ -371,22 +375,22 @@ void AbstractMJPEGEncoder::transformColorSpace(
             auto srcRow = row < srcSize.height ? row : srcSize.height - 1;
             color::RGBA *__restrict ptr = rgbaBuffer + srcRow * srcSize.width + srcCol;
 
-            const auto r = (float) ((ptr->value >> 16) & 0xFF);
-            const auto g = (float) ((ptr->value >> 8) & 0xFF);
-            const auto b = (float) ((ptr->value >> 0) & 0xFF);
+            const auto r = (float) ptr->color.r;
+            const auto g = (float) ptr->color.g;
+            const auto b = (float) ptr->color.b;
 
             auto yF = (+0.299f * r + 0.587f * g + 0.114f * b) -128.f;
             auto cbF = (-0.16874f * r - 0.33126f * g + 0.5f * b);
             auto crF = (+0.5f * r - 0.41869f * g - 0.08131f * b);
 
-            // assert(-128 <= yF && yF <= 127);
-            // assert(-128 <= cbF && cbF <= 127);
-            // assert(-128 <= crF && crF <= 127);
-
-            yChannelBase[col + offset] = (yF);
-            cbChannelBase[col + offset] = (cbF);
-            crChannelBase[col + offset] = (crF);
+            localYChannel[col] = (yF);
+            localCbChannel[col] = (cbF);
+            localCrChannel[col] = (crF);
         }
+
+        memcpy(yChannelBase + offset, localYChannel, sizeof(float) * totalCols);
+        memcpy(cbChannelBase + offset, localCbChannel, sizeof(float) * totalCols);
+        memcpy(crChannelBase + offset, localCrChannel, sizeof(float) * totalCols);
     }
 }
 
