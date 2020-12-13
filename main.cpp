@@ -2,6 +2,12 @@
 #include <filesystem>
 #include <getopt.h>
 
+#ifdef __unix__
+
+#include <sys/mman.h>
+
+#endif
+
 #include "model/Model.h"
 #include "core/encoder/AbstractMJPEGEncoder.h"
 
@@ -25,6 +31,15 @@ void showHelp(char *const exeName) {
 }
 
 int main(int argc, char *argv[]) {
+#ifdef __unix__
+    if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0) {
+        cerr << "cannot allocate page-locked memory memory, errno = " << errno << ", try run with root user." << endl;
+    } else {
+        atexit([]() {
+            munlockall();
+        });
+    }
+#endif
     Arguments arguments{
             .tmpDir = filesystem::temp_directory_path().string(),
             .quality = 100,
@@ -48,7 +63,7 @@ int main(int argc, char *argv[]) {
                 {"threads",  required_argument, nullptr, 't'},
                 {"temp-dir", required_argument, nullptr, 'T'},
                 {"kind",     required_argument, nullptr, 'k'},
-                {"device",     required_argument, nullptr, 'd'},
+                {"device",   required_argument, nullptr, 'd'},
                 {"help",     no_argument,       nullptr, 'h'},
         };
         char opt;
