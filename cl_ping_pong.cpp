@@ -63,8 +63,8 @@ int main(int argc, char **argv) {
          << firstMatchDevice->getInfo<CL_DEVICE_NAME>()
          << "] on platform [" << platformName
          << "]." << endl
-         << "Max memory allocation: " << (_maxMemoryAllocSize << 20) << "MB" << endl
-         << "Global memory: " << (_globalMemorySize << 20) << "MB" << endl;
+         << "Max memory allocation: " << (_maxMemoryAllocSize >> 20) << "MB" << endl
+         << "Global memory: " << (_globalMemorySize >> 20) << "MB" << endl;
 
     auto _context = new cl::Context({*_device});
 
