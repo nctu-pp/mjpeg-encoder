@@ -160,27 +160,22 @@ void MJPEGEncoderOpenMPImpl::encodeJpeg(color::RGBA *originalData, int length, v
 
     // average color of the previous MCU
     int16_t lastYDC = 0, lastCbDC = 0, lastCrDC = 0;
-    auto maxWidth = (this->_cachedPaddingSize).width - 1;
-    auto maxHeight = (this->_cachedPaddingSize).height - 1;
+    const auto maxWidth = (this->_cachedPaddingSize).width;
+    const auto maxHeight = (this->_cachedPaddingSize).height;
     float Y[8][8], Cb[8][8], Cr[8][8];
     vector<BitCode> YBitCodeBuffer, CbBitCodeBuffer, CrBitCodeBuffer;
     vector<int> YSize, CbSize, CrSize;
-    int yc, cbc, crc;
-    clock_t start, end;
 
-    for (auto mcuY = 0; mcuY < (this->_cachedPaddingSize).height; mcuY += 8) { // each step is either 8 or 16 (=mcuSize)
-        for (auto mcuX = 0; mcuX < (this->_cachedPaddingSize).width; mcuX += 8) {
+    for (auto mcuY = 0; mcuY < maxHeight; mcuY += 8) { // each step is either 8 or 16 (=mcuSize)
+        for (auto mcuX = 0; mcuX < maxWidth; mcuX += 8) {
             for (auto deltaY = 0; deltaY < 8; ++deltaY) {
-                auto column = mcuX;
-                auto row = (mcuY + deltaY > maxHeight) ? maxHeight : mcuY + deltaY;
+                const auto row = mcuY + deltaY;
                 for (auto deltaX = 0; deltaX < 8; ++deltaX) {
-                    auto pixelPos = row * (maxWidth+1) + column;
-                    column = (column < maxWidth) ? column + 1: column;
+                    const auto pixelPos = row * maxWidth + deltaX + mcuX;
 
                     Y[deltaY][deltaX] = yuvFrameBuffer->getYChannel()[pixelPos];
                     Cb[deltaY][deltaX] = yuvFrameBuffer->getCbChannel()[pixelPos];
                     Cr[deltaY][deltaX] = yuvFrameBuffer->getCrChannel()[pixelPos];
-
                 }
             }
             lastYDC =  encodeBlock(output, Y, _scaledLuminance, lastYDC, _huffmanLuminanceDC, _huffmanLuminanceAC, codewords, localBitBuffer);

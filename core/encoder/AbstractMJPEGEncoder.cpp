@@ -314,7 +314,7 @@ void AbstractMJPEGEncoder::writeScanInfo(
         output.emplace_back((id == 1) ? 0x00 : 0x11);
     }
     static const uint8_t Spectral[3] = { 0, 63, 0 }; // spectral selection: must be from 0 to 63; successive approximation must be 0
-    for (auto i = 0; i < 3; ++i) output.emplace_back(Spectral[i]);
+    output.insert(output.end(), Spectral, Spectral + 3);
 }
 
 void AbstractMJPEGEncoder::initJpegTable() {
