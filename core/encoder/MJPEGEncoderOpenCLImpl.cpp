@@ -245,6 +245,13 @@ void MJPEGEncoderOpenCLImpl::start() {
         assert(this->_maxWorkItems[0] == this->_maxWorkItems[1]);
     } while (false);
 
+    auto maxFrameAllowedReadInMemory = this->_maxMemoryAllocSize / (
+            (_cachedPaddingSize.width * _cachedPaddingSize.height) * sizeof(float) * 2 // times 2 for input and output
+            + 64 * 3 * sizeof(float) // DCT table
+    );
+
+    maxBatchFrames = std::min(maxFrameAllowedReadInMemory, maxBatchFrames);
+
     auto buffer = new char[originalRgbFrameSize * maxBatchFrames];
     AVIOutputStream aviOutputStream(_arguments.output);
 
@@ -358,8 +365,8 @@ void MJPEGEncoderOpenCLImpl::start() {
         passData[6] = &globalSize;
         // cout << groupWidth << " " << groupHeight << " " << readFrameCnt << " " << extraNeedBatchPerFrameX << " " << extraNeedBatchPerFrameY << endl;
 
-        cl::NDRange globalBlockSize(groupWidth/8, groupHeight/8,
-                               readFrameCnt * (extraNeedBatchPerFrameX * extraNeedBatchPerFrameY));
+        cl::NDRange globalBlockSize(_cachedPaddingSize.width / 8, _cachedPaddingSize.height / 8,
+                                    readFrameCnt);
         passData[8] = &globalBlockSize;
 
         passData[14] = &readFrameCnt;
