@@ -269,6 +269,10 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
         current = output.size();
     }
     cout << "CPU TIME: " << TEST_TIME_END(cpu) << endl << endl;
+
+    delete[] hYOutChannel;
+    delete[] hCbOutChannel;
+    delete[] hCrOutChannel;
 }
 
 void MJPEGEncoderOpenCLImpl::start() {
@@ -581,10 +585,12 @@ void MJPEGEncoderOpenCLImpl::bootstrap() {
 
 MJPEGEncoderOpenCLImpl::~MJPEGEncoderOpenCLImpl() {
     delete _clCmdQueue;
+    delete _program;
     delete _context;
     delete _device;
 
     _clCmdQueue = nullptr;
+    _program = nullptr;
     _context = nullptr;
     _device = nullptr;
 }
