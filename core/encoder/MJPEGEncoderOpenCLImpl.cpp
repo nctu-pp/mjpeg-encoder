@@ -46,9 +46,6 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     auto blockDimPtr = (cl::NDRange *) sharedData[argc++];
 
     auto dOtherArgs = (cl::Buffer *) sharedData[argc++];
-    auto dYChannelOutBuffer = (cl::Buffer *) sharedData[argc++];
-    auto dCbChannelOutBuffer = (cl::Buffer *) sharedData[argc++];
-    auto dCrChannelOutBuffer = (cl::Buffer *) sharedData[argc++];
 
     auto batchDataSizeOneChannel = (unsigned long *) sharedData[argc++];
 
@@ -111,15 +108,15 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     };
 
     // do dct and quantization for y channel
-    doDctAndQuantization(dYChannelBuffer, dYChannelOutBuffer, scaledLuminance,
+    doDctAndQuantization(dYChannelBuffer, dYChannelBuffer, scaledLuminance,
                          {transformEvent}, &yDctEvent);
 
     // do dct and quantization for cb channel
-    doDctAndQuantization(dCbChannelBuffer, dCbChannelOutBuffer, scaledChrominance,
+    doDctAndQuantization(dCbChannelBuffer, dCbChannelBuffer, scaledChrominance,
                          {transformEvent}, &cbDctEvent);
 
     // do dct and quantization for cr channel
-    doDctAndQuantization(dCrChannelBuffer, dCrChannelOutBuffer, scaledChrominance,
+    doDctAndQuantization(dCrChannelBuffer, dCrChannelBuffer, scaledChrominance,
                          {transformEvent}, &crDctEvent);
 
 
@@ -137,17 +134,17 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
 
     size_t dataSize =
             (*readFrameCnt) * (this->_cachedPaddingSize).width * (this->_cachedPaddingSize).height * sizeof(float);
-    err = _clCmdQueue->enqueueReadBuffer(*dYChannelOutBuffer, CL_TRUE,
+    err = _clCmdQueue->enqueueReadBuffer(*dYChannelBuffer, CL_TRUE,
                                          0, dataSize,
                                          (float *) hYOutChannel);
     this->dieIfClError(err, __LINE__);
 
-    err = _clCmdQueue->enqueueReadBuffer(*dCbChannelOutBuffer, CL_TRUE,
+    err = _clCmdQueue->enqueueReadBuffer(*dCbChannelBuffer, CL_TRUE,
                                          0, dataSize,
                                          (float *) hCbOutChannel);
     this->dieIfClError(err, __LINE__);
 
-    err = _clCmdQueue->enqueueReadBuffer(*dCrChannelOutBuffer, CL_TRUE,
+    err = _clCmdQueue->enqueueReadBuffer(*dCrChannelBuffer, CL_TRUE,
                                          0, dataSize,
                                          (float *) hCrOutChannel);
     this->dieIfClError(err, __LINE__);
@@ -358,11 +355,6 @@ void MJPEGEncoderOpenCLImpl::start() {
     cl::Buffer dCrChannelBuffer(*_context, CL_MEM_READ_WRITE, yCbCrSize, nullptr, &bufferDeclErr);
     this->dieIfClError(bufferDeclErr, __LINE__);
 
-    cl::Buffer dYChannelOutBuffer(*_context, CL_MEM_READ_WRITE, yCbCrSize, nullptr, &bufferDeclErr);
-    cl::Buffer dCbChannelOutBuffer(*_context, CL_MEM_READ_WRITE, yCbCrSize, nullptr, &bufferDeclErr);
-    cl::Buffer dCrChannelOutBuffer(*_context, CL_MEM_READ_WRITE, yCbCrSize, nullptr, &bufferDeclErr);
-    this->dieIfClError(bufferDeclErr, __LINE__);
-
     cl::Buffer scaledLuminance(*_context, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
                                sizeof(float) * 64, _scaledLuminance, &bufferDeclErr);
     cl::Buffer scaledChrominance(*_context, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
@@ -415,12 +407,8 @@ void MJPEGEncoderOpenCLImpl::start() {
             nullptr, // 8
             &dOtherArgs,
 
-            &dYChannelOutBuffer,
-            &dCbChannelOutBuffer,
-            &dCrChannelOutBuffer,
-
             &batchDataSizeOneChannel,
-            nullptr, // 14
+            nullptr, // 11
             &scaledLuminance,
             &scaledChrominance,
             &outputSize
@@ -442,7 +430,7 @@ void MJPEGEncoderOpenCLImpl::start() {
                                     readFrameCnt);
         passData[8] = &globalBlockSize;
 
-        passData[14] = &readFrameCnt;
+        passData[11] = &readFrameCnt;
 
         this->encodeJpeg(
                 (color::RGBA *) buffer, originalRgbFrameSize * readFrameCnt,
