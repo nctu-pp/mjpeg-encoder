@@ -17,7 +17,7 @@ namespace core::encoder {
         ~MJPEGEncoderOpenCLImpl();
 
     protected:
-        bool _writeIntermediateResult = true;
+        bool _writeIntermediateResult = false;
 
         void start() override;
 

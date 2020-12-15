@@ -46,9 +46,6 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     auto blockDimPtr = (cl::NDRange *) sharedData[argc++];
 
     auto dOtherArgs = (cl::Buffer *) sharedData[argc++];
-    auto dYChannelOutBuffer = (cl::Buffer *) sharedData[argc++];
-    auto dCbChannelOutBuffer = (cl::Buffer *) sharedData[argc++];
-    auto dCrChannelOutBuffer = (cl::Buffer *) sharedData[argc++];
 
     auto batchDataSizeOneChannel = (unsigned long *) sharedData[argc++];
 
@@ -123,15 +120,15 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     };
 
     // do dct and quantization for y channel
-    doDctAndQuantization(dYChannelBuffer, dYChannelOutBuffer, scaledLuminance,
+    doDctAndQuantization(dYChannelBuffer, dYChannelBuffer, scaledLuminance,
                          {transformEvent}, &yDctEvent);
 
     // do dct and quantization for cb channel
-    doDctAndQuantization(dCbChannelBuffer, dCbChannelOutBuffer, scaledChrominance,
+    doDctAndQuantization(dCbChannelBuffer, dCbChannelBuffer, scaledChrominance,
                          {transformEvent}, &cbDctEvent);
 
     // do dct and quantization for cr channel
-    doDctAndQuantization(dCrChannelBuffer, dCrChannelOutBuffer, scaledChrominance,
+    doDctAndQuantization(dCrChannelBuffer, dCrChannelBuffer, scaledChrominance,
                          {transformEvent}, &crDctEvent);
 
 
@@ -164,6 +161,7 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     //                                      (float *) hCrOutChannel);
     // this->dieIfClError(err, __LINE__);
 
+    cout << "GPU TIME: " << TEST_TIME_END(gpu) << endl;
     TEST_TIME_START(cpu);
     // precompute JPEG codewords for quantized DCT
     BitCode codewordsArray[
@@ -203,9 +201,9 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     auto maxHeight = (this->_cachedPaddingSize).height;
     int current = 0;
 
-    err = clEncode->setArg(0, *dYChannelOutBuffer);
-    err = clEncode->setArg(1, *dCbChannelOutBuffer);
-    err = clEncode->setArg(2, *dCrChannelOutBuffer);
+    err = clEncode->setArg(0, *dYChannelBuffer);
+    err = clEncode->setArg(1, *dCbChannelBuffer);
+    err = clEncode->setArg(2, *dCrChannelBuffer);
     err = clEncode->setArg(3, *huffmanLuminanceAC);
     err = clEncode->setArg(4, *huffmanChrominanceAC);
     err = clEncode->setArg(5, *huffmanLuminanceDC);
@@ -252,6 +250,10 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     }
 
     cout << "CPU TIME: " << TEST_TIME_END(cpu) << endl << endl;
+
+    // delete[] hYOutChannel;
+    // delete[] hCbOutChannel;
+    // delete[] hCrOutChannel;
 }
 
 void MJPEGEncoderOpenCLImpl::start() {
@@ -336,11 +338,6 @@ void MJPEGEncoderOpenCLImpl::start() {
     cl::Buffer dYChannelBuffer(*_context, CL_MEM_READ_WRITE, yCbCrSize, nullptr, &bufferDeclErr);
     cl::Buffer dCbChannelBuffer(*_context, CL_MEM_READ_WRITE, yCbCrSize, nullptr, &bufferDeclErr);
     cl::Buffer dCrChannelBuffer(*_context, CL_MEM_READ_WRITE, yCbCrSize, nullptr, &bufferDeclErr);
-    this->dieIfClError(bufferDeclErr, __LINE__);
-
-    cl::Buffer dYChannelOutBuffer(*_context, CL_MEM_READ_WRITE, yCbCrSize, nullptr, &bufferDeclErr);
-    cl::Buffer dCbChannelOutBuffer(*_context, CL_MEM_READ_WRITE, yCbCrSize, nullptr, &bufferDeclErr);
-    cl::Buffer dCrChannelOutBuffer(*_context, CL_MEM_READ_WRITE, yCbCrSize, nullptr, &bufferDeclErr);
     this->dieIfClError(bufferDeclErr, __LINE__);
 
     cl::Buffer scaledLuminance(*_context, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
@@ -462,12 +459,8 @@ void MJPEGEncoderOpenCLImpl::start() {
             nullptr, // 8
             &dOtherArgs,
 
-            &dYChannelOutBuffer,
-            &dCbChannelOutBuffer,
-            &dCrChannelOutBuffer,
-
             &batchDataSizeOneChannel,
-            nullptr, // 14
+            nullptr, // 11
             &scaledLuminance,
             &scaledChrominance,
             &outputSize,
@@ -499,7 +492,7 @@ void MJPEGEncoderOpenCLImpl::start() {
                                     readFrameCnt);
         passData[8] = &globalBlockSize;
 
-        passData[14] = &readFrameCnt;
+        passData[11] = &readFrameCnt;
 
         this->encodeJpeg(
                 (color::RGBA *) buffer, originalRgbFrameSize * readFrameCnt,
@@ -646,10 +639,12 @@ void MJPEGEncoderOpenCLImpl::bootstrap() {
 
 MJPEGEncoderOpenCLImpl::~MJPEGEncoderOpenCLImpl() {
     delete _clCmdQueue;
+    delete _program;
     delete _context;
     delete _device;
 
     _clCmdQueue = nullptr;
+    _program = nullptr;
     _context = nullptr;
     _device = nullptr;
 }

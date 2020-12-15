@@ -1,30 +1,37 @@
 import subprocess
-num = 100
-for i in range(0,num):
-	cmd = '/usr/bin/time ./mjpeg_encoder -i enAd0wfp_GE.f137.raw -s 854x480 -r 60 -o ./test_openmp.avi -k "openmp" -T "./tmp_jpegs_mp/" -t 1 2>> time1.out'
-	subprocess.call(cmd, shell=True)
-for i in range(0,num):
-	cmd = '/usr/bin/time ./mjpeg_encoder -i enAd0wfp_GE.f137.raw -s 854x480 -r 60 -o ./test_openmp.avi -k "openmp" -T "./tmp_jpegs_mp/" -t 2 2>> time2.out'
-	subprocess.call(cmd, shell=True)
-for i in range(0,num):
-	cmd = '/usr/bin/time ./mjpeg_encoder -i enAd0wfp_GE.f137.raw -s 854x480 -r 60 -o ./test_openmp.avi -k "openmp" -T "./tmp_jpegs_mp/" -t 4 2>> time4.out'
-	subprocess.call(cmd, shell=True)
-for i in range(0,num):
-	cmd = '/usr/bin/time ./mjpeg_encoder -i enAd0wfp_GE.f137.raw -s 854x480 -r 60 -o ./test_openmp.avi -k "openmp" -T "./tmp_jpegs_mp/" -t 8 2>> time8.out'
-	subprocess.call(cmd, shell=True)
-for i in range(0,num):
-	cmd = '/usr/bin/time ./mjpeg_encoder -i enAd0wfp_GE.f137.raw -s 854x480 -r 60 -o ./test_openmp.avi -k "openmp" -T "./tmp_jpegs_mp/" -t 12 2>> time12.out'
-	subprocess.call(cmd, shell=True)
-for i in range(0,num):
-	cmd = '/usr/bin/time ./mjpeg_encoder -i enAd0wfp_GE.f137.raw -s 854x480 -r 60 -o ./test_openmp.avi -k "openmp" -T "./tmp_jpegs_mp/" -t 16 2>> time16.out'
-	subprocess.call(cmd, shell=True)
-for i in range(0,num):
-	cmd = '/usr/bin/time ./mjpeg_encoder -i enAd0wfp_GE.f137.raw -s 854x480 -r 60 -o ./test_openmp.avi -k "openmp" -T "./tmp_jpegs_mp/" -t 20 2>> time20.out'
-	subprocess.call(cmd, shell=True)
-for i in range(0,num):
-	cmd = '/usr/bin/time ./mjpeg_encoder -i enAd0wfp_GE.f137.raw -s 854x480 -r 60 -o ./test_openmp.avi -k "openmp" -T "./tmp_jpegs_mp/" -t 24 2>> time24.out'
-	subprocess.call(cmd, shell=True)
+import os
+import re
+num = 20
 
-for i in range(0,num):
-	cmd = '/usr/bin/time ./mjpeg_encoder -i enAd0wfp_GE.f137.raw -s 854x480 -r 60 -o ./test2.avi -k 0 2>> time_serial.out'
-	subprocess.call(cmd, shell=True)
+files = os.listdir("../test_set")
+print(files)
+
+raw_list = []
+for file_path in files:
+    if(file_path.endswith(".raw")):
+        raw_list.append(file_path)
+
+def parser_path(path):
+    print(path)
+    resolution = (re.search('-(.*)-',str(path)).group(1))
+    fps = (re.search('-f(.*)\.',str(path)).group(1))
+    return fps, resolution
+
+thread_list = [1,2,4,8,12,16,20,24,28,32,36,40,44,48]
+quality_list = [20,40,60,80,100]
+thread_list.reverse()
+quality_list.reverse()
+
+for thread_num in thread_list:
+    for quality in quality_list:
+        for raw_name in raw_list:
+            fps, resolution = parser_path(raw_name)
+
+            dir_path = "./result/"+raw_name.split(".raw")[0]
+            os.makedirs(dir_path,exist_ok=True)
+            raw_path = "../test_set/" + raw_name
+            for i in range(0, num):
+                cmd = '/usr/bin/time ../mjpeg_encoder -i '+ raw_path + ' -s ' + resolution + ' -r ' + fps + ' -o ./test_' + raw_name.split(".raw")[0] + '.avi -k "openmp" -T "./tmp_jpegs_mp/" -t ' + str(thread_num) + ' -q ' + str(quality) + ' -d cpu 2>> ' + dir_path + '/time_t' + str(thread_num) + '_q' + str(quality) + '_'  + '.out' 
+                print(cmd)
+                subprocess.call(cmd, shell=True)
+

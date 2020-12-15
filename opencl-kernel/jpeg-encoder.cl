@@ -84,9 +84,7 @@ __kernel void doDCT(
     size_t _x = get_global_id(0);
     size_t _y = get_global_id(1);
     size_t batch = get_global_id(2);
-    size_t offset;
-    
-    offset = batch * width * height + _x * 8 + _y * 8 * width;
+    size_t offset = batch * width * height + _x * 8 + _y * 8 * width;
 
     const float SqrtHalfSqrt = 1.306562965f; //    sqrt((2 + sqrt(2)) / 2) = cos(pi * 1 / 8) * sqrt(2)
     const float InvSqrt      = 0.707106781f; // 1 / sqrt(2)                = cos(pi * 2 / 8)
