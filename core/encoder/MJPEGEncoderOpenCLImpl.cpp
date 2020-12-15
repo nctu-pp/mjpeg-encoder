@@ -184,12 +184,9 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
         // TODO: move _bitBuffer to private
         BitBuffer _bitBuffer;
         _bitBuffer.init();
-        writeJFIFHeader(output);
-        writeQuantizationTable(output, _quantLuminance, _quantChrominance);
-        // write infos: SOF0 - start of frame
-        writeImageInfos(output);
-        writeHuffmanTable(output);
-        writeScanInfo(output);
+
+        output.insert(output.end(), commonJpegHeader.begin(), commonJpegHeader.end());
+
         int16_t lastYDC = 0, lastCbDC = 0, lastCrDC = 0;
         float Y[8][8], Cb[8][8], Cr[8][8];
         for (auto mcuY = 0; mcuY < maxHeight; mcuY += 8) { // each step is either 8 or 16 (=mcuSize)
