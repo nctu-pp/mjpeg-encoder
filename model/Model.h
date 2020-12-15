@@ -74,7 +74,13 @@ namespace model {
         };
     }
 
-    class BitCode
+    typedef struct __attribute__ ((packed)) _BitCodeStruct
+    {
+        uint16_t code;     // JPEG's Huffman codes are limited to 16 bits
+        uint8_t numBits;    // number of valid bits
+    }BitCodeStruct;
+
+    class __attribute__ ((packed)) BitCode
     {
     public:
         BitCode() = default; // undefined state, must be initialized at a later time

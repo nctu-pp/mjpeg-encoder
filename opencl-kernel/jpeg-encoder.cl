@@ -189,3 +189,162 @@ __kernel void doDCT(
         }
     }
 }
+
+typedef struct __attribute__ ((packed)) _BitCodeStruct
+{
+    unsigned short code;       // JPEG's Huffman codes are limited to 16 bits
+    unsigned char numBits;    // number of valid bits
+} BitCodeStruct;
+
+typedef struct _BitBuffer
+{
+    int data; // actually only at most 24 bits are used
+    unsigned char numBits; // number of valid bits (the right-most bits)
+} BitBuffer;
+
+void writeBitCode(
+    __global unsigned char *output,
+    __global int *index,
+    size_t frameNo,
+    BitCodeStruct data,
+    BitBuffer *bitbuffer,
+    int totalPixels
+) {
+    (*bitbuffer).numBits += data.numBits;
+    (*bitbuffer).data   <<= data.numBits;
+    (*bitbuffer).data    |= data.code;
+    while((*bitbuffer).numBits >= 8) {
+        (*bitbuffer).numBits -= 8;
+        unsigned char oneByte = (unsigned char)((*bitbuffer).data >> (*bitbuffer).numBits);
+        output[frameNo * totalPixels + index[frameNo]] = oneByte;
+        index[frameNo] = index[frameNo] + 1;
+        if (oneByte == 0xFF) {
+            output[frameNo * totalPixels + index[frameNo]] = 0;
+            index[frameNo] = index[frameNo] + 1;
+        }
+    }    
+}
+
+short encodeBlock(
+    __global unsigned char *output,
+    __global int *index,
+    int frameNo,
+    BitBuffer *bitBuffer,
+    float block[8][8],
+    short lastDC,
+    BitCodeStruct huffmanDC[256],
+    BitCodeStruct huffmanAC[256],
+    __global BitCodeStruct *codewords,
+    __global unsigned char *zigzaginv,
+    int totalPixels
+) {
+    float *block64 = (float*) block;
+    int DC = block64[0] + (block64[0] >= 0 ? +0.5f : -0.5f); // C++11's nearbyint() achieves a similar effect
+
+    // quantize and zigzag the other 63 coefficients
+    int posNonZero = 0; // find last coefficient which is not zero (because trailing zeros are encoded differently)
+    short quantized[8*8];
+    for (int i = 1; i < 8*8; i++) // start at 1 because block64[0]=DC was already processed
+    {
+        float value = block64[zigzaginv[i]];
+        // round to nearest integer
+        quantized[i] = value + (value >= 0 ? +0.5f : -0.5f); // C++11's nearbyint() achieves a similar effect
+        // remember offset of last non-zero coefficient
+        if (quantized[i] != 0)
+            posNonZero = i;
+    }
+
+    int diff = DC - lastDC;
+    if (diff == 0)
+        writeBitCode(output, index, frameNo, huffmanDC[0x00], bitBuffer, totalPixels);
+    else
+    {
+        writeBitCode(output, index, frameNo, huffmanDC[codewords[diff+2047].numBits], bitBuffer, totalPixels);
+        writeBitCode(output, index, frameNo, codewords[diff+2047], bitBuffer, totalPixels);
+    }
+    
+    // encode ACs (quantized[1..63])
+    int offset = 0; // upper 4 bits count the number of consecutive zeros
+    for (int i = 1; i <= posNonZero; i++) // quantized[0] was already written, skip all trailing zeros, too
+    {
+        // zeros are encoded in a special way
+        while (quantized[i] == 0) // found another zero ?
+        {
+            offset    += 0x10; // add 1 to the upper 4 bits
+            // split into blocks of at most 16 consecutive zeros
+            if (offset > 0xF0) // remember, the counter is in the upper 4 bits, 0xF = 15
+            {
+                writeBitCode(output, index, frameNo, huffmanAC[0xF0], bitBuffer, totalPixels);
+                offset = 0;
+            }
+            i++;
+        }
+
+        // combine number of zeros with the number of bits of the next non-zero value
+        writeBitCode(output, index, frameNo, huffmanAC[offset + codewords[quantized[i]+2047].numBits], bitBuffer, totalPixels);
+        writeBitCode(output, index, frameNo, codewords[quantized[i]+2047], bitBuffer, totalPixels);
+        offset = 0;
+    }
+
+    // send end-of-block code (0x00), only needed if there are trailing zeros
+    if (posNonZero < 8*8 - 1) // = 63
+        writeBitCode(output, index, frameNo, huffmanAC[0x00], bitBuffer, totalPixels);
+    return DC;
+}
+
+__kernel void encode(
+        __global float *yChannel,
+        __global float *cbChannel,
+        __global float *crChannel,
+        __global BitCodeStruct *huffmanLuminanceAC,
+        __global BitCodeStruct *huffmanChrominanceAC,
+        __global BitCodeStruct *huffmanLuminanceDC,
+        __global BitCodeStruct *huffmanChrominanceDC,
+        __global unsigned char *zigzaginv,
+        __global unsigned char *outputBuffer,
+        __global int *outputLength,
+        __global int *otherArguments,
+        __global BitCodeStruct *codewords
+) {
+    int maxWidth = otherArguments[2];
+    int maxHeight = otherArguments[3];
+    int totalPixels = maxHeight * maxWidth;
+    size_t frameNo = get_global_id(0);
+    int offset = maxHeight * maxWidth * frameNo;
+    BitBuffer _bitBuffer;
+    _bitBuffer.data = 0;
+    _bitBuffer.numBits = 0;
+
+    outputLength[frameNo] = 0;
+
+    short lastYDC = 0, lastCbDC = 0, lastCrDC = 0;
+    
+    float Y[8][8], Cb[8][8], Cr[8][8];
+
+    for (int mcuY = 0; mcuY < maxHeight; mcuY += 8) { // each step is either 8 or 16 (=mcuSize)
+        for (int mcuX = 0; mcuX < maxWidth; mcuX += 8) {
+
+            for (int i = 0; i < 8; i++) {
+                for (int j = 0; j < 8; j++) {
+                    Y[i][j] = yChannel[offset + mcuY * maxWidth + mcuX + maxWidth*i+j];
+                    Cb[i][j] = cbChannel[offset + mcuY * maxWidth + mcuX + maxWidth*i+j];
+                    Cr[i][j] = crChannel[offset + mcuY * maxWidth + mcuX + maxWidth*i+j];
+                }
+            }
+
+            lastYDC = encodeBlock(outputBuffer, outputLength, frameNo, &_bitBuffer, Y, lastYDC, huffmanLuminanceDC, huffmanLuminanceAC,
+                                    codewords, zigzaginv, totalPixels);
+            lastCbDC = encodeBlock(outputBuffer, outputLength, frameNo, &_bitBuffer, Cb, lastCbDC, huffmanChrominanceDC, huffmanChrominanceAC,
+                                    codewords, zigzaginv, totalPixels);
+            lastCrDC = encodeBlock(outputBuffer, outputLength, frameNo, &_bitBuffer, Cr, lastCrDC, huffmanChrominanceDC, huffmanChrominanceAC,
+                                    codewords, zigzaginv, totalPixels);      
+        }
+    }
+    BitCodeStruct f;
+    f.code = 0x7F;
+    f.numBits = 7;
+    writeBitCode(outputBuffer, outputLength, frameNo, f, &_bitBuffer, totalPixels);
+    outputBuffer[frameNo*maxWidth*maxHeight + outputLength[frameNo]] = 0xFF;
+    outputBuffer[frameNo*maxWidth*maxHeight + outputLength[frameNo]] = 0xFF;
+    outputLength[frameNo] = outputLength[frameNo] + 2;
+}

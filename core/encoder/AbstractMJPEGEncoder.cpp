@@ -154,7 +154,7 @@ int16_t AbstractMJPEGEncoder::encodeBlock(vector<char> &output,
                                           const BitCode *codewords)
 {
     auto block64 = (float*) block;
-// cout << "ok0:" << block64[0] << endl;
+
     // encode DC (the first coefficient is the "average color" of the 8x8 block)
     auto DC = int(block64[0] + (block64[0] >= 0 ? +0.5f : -0.5f)); // C++11's nearbyint() achieves a similar effect
 
@@ -170,9 +170,15 @@ int16_t AbstractMJPEGEncoder::encodeBlock(vector<char> &output,
         if (quantized[i] != 0)
             posNonZero = i;
     }
-// cout << "ok1:" << DC << endl;
+
+
     // same "average color" as previous block ?
     auto diff = DC - lastDC;
+// printf("`");
+// // for(int i = 0; i < 64; i++)
+// //     printf("%d ", quantized[i]);
+// printf("%d", diff);
+// printf("`");
     if (diff == 0)
         writeBitCode(output, huffmanDC[0x00], bitBuffer);
     else
@@ -228,7 +234,7 @@ void AbstractMJPEGEncoder::writeBitCode(
     bitBuffer.numBits += data.numBits;
     bitBuffer.data   <<= data.numBits;
     bitBuffer.data    |= data.code;
-
+    // printf("`%d`", bitBuffer.data);
     while(bitBuffer.numBits >= 8) {
         bitBuffer.numBits -= 8;
         auto oneByte = uint8_t(bitBuffer.data >> bitBuffer.numBits);
