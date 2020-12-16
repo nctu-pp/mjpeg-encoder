@@ -66,8 +66,10 @@ add_executable(
         core/Utils.cpp
 )
 
-add_library(hook_amd_opencl SHARED hook/hook-amd-opencl.c)
-add_library(hook_nvidia_opencl SHARED hook/hook-nvidia-opencl.c)
+if (UNIX)
+    add_library(hook_amd_opencl SHARED hook/hook-amd-opencl.c)
+    add_library(hook_nvidia_opencl SHARED hook/hook-nvidia-opencl.c)
+endif()
 
 # Link libraries
 
