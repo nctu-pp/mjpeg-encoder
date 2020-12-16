@@ -230,8 +230,8 @@ short encodeBlock(
     BitBuffer *bitBuffer,
     float block[8][8],
     short lastDC,
-    BitCodeStruct huffmanDC[256],
-    BitCodeStruct huffmanAC[256],
+    __global BitCodeStruct huffmanDC[256],
+    __global BitCodeStruct huffmanAC[256],
     __global BitCodeStruct *codewords,
     __global unsigned char *zigzaginv,
     int totalPixels

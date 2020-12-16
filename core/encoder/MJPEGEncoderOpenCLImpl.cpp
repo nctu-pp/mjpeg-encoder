@@ -73,9 +73,7 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     TEST_TIME_START(gpu);
 
     // copy rgba data to kernel
-    TEST_TIME_START(init0);
     err = this->_clCmdQueue->enqueueWriteBuffer(*dRgbaBuffer, CL_TRUE, 0, length, (char *) originalData);
-    // cout << "copy 1 " << TEST_TIME_END(init0) << endl;
     this->dieIfClError(err, __LINE__);
 
     TEST_TIME_START(run1);
@@ -88,7 +86,9 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
             &transformEvent
     );
     this->dieIfClError(err, __LINE__);
-    // cout << "PaddingAndTransformColorSpace " << TEST_TIME_END(run1) << endl;
+
+    this->dieIfClError(transformEvent.wait(), __LINE__);
+    cout << "PaddingAndTransformColorSpace Time " << TEST_TIME_END(run1) << endl;
 
     auto doDctAndQuantization = [
             &blockDimPtr,
@@ -121,6 +121,7 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
         // cout << "dct " << TEST_TIME_END(dct1) << endl;
     };
 
+    TEST_TIME_START(run2);
     // do dct and quantization for y channel
     doDctAndQuantization(dYChannelBuffer, dYChannelBuffer, scaledLuminance,
                          {transformEvent}, &yDctEvent);
@@ -138,30 +139,8 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
             {
                     yDctEvent, cbDctEvent, crDctEvent
             });
-
-    // this->dieIfClError(cl::Event::waitForEvents(dctAndQuantizationEvents), __LINE__);
-
-    // TODO: move huffman to opencl
-    // auto hYOutChannel = new float[*batchDataSizeOneChannel];
-    // auto hCbOutChannel = new float[*batchDataSizeOneChannel];
-    // auto hCrOutChannel = new float[*batchDataSizeOneChannel];
-
-    // size_t dataSize =
-    //         (*readFrameCnt) * (this->_cachedPaddingSize).width * (this->_cachedPaddingSize).height * sizeof(float);
-    // err = _clCmdQueue->enqueueReadBuffer(*dYChannelOutBuffer, CL_TRUE,
-    //                                      0, dataSize,
-    //                                      (float *) hYOutChannel);
-    // this->dieIfClError(err, __LINE__);
-
-    // err = _clCmdQueue->enqueueReadBuffer(*dCbChannelOutBuffer, CL_TRUE,
-    //                                      0, dataSize,
-    //                                      (float *) hCbOutChannel);
-    // this->dieIfClError(err, __LINE__);
-
-    // err = _clCmdQueue->enqueueReadBuffer(*dCrChannelOutBuffer, CL_TRUE,
-    //                                      0, dataSize,
-    //                                      (float *) hCrOutChannel);
-    // this->dieIfClError(err, __LINE__);
+    this->dieIfClError(cl::Event::waitForEvents(dctAndQuantizationEvents), __LINE__);
+    cout << "dctAndQuantization Time " << TEST_TIME_END(run2) << endl;
 
     auto maxWidth = (this->_cachedPaddingSize).width;
     auto maxHeight = (this->_cachedPaddingSize).height;
@@ -181,6 +160,7 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     err = clEncode->setArg(11, *codewordsBuffer);
     this->dieIfClError(err, __LINE__);
 
+    TEST_TIME_START(run3);
     err = this->_clCmdQueue->enqueueNDRangeKernel(
             *clEncode,
             cl::NullRange,
@@ -191,6 +171,12 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     );
     this->dieIfClError(err, __LINE__);
 
+    this->dieIfClError(encodeEvent.wait(), __LINE__);
+    cout << "clEncode Time " << TEST_TIME_END(run3) << endl;
+
+    cout << "GPU TIME: " << TEST_TIME_END(gpu) << endl;
+
+    TEST_TIME_START(readTime);
     int outputLengLocal[*readFrameCnt];
     int headerSize = commonJpegHeader.size();
     err = _clCmdQueue->enqueueReadBuffer(*outputLength, CL_TRUE,
@@ -202,8 +188,8 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
                                          0, sizeof(char) * (*totalPixels) * (*readFrameCnt),
                                          hOutputBuffer);
     this->dieIfClError(err, __LINE__);
+    cout << "DATA READ BACK TIME: " << TEST_TIME_END(readTime) << endl;
 
-    cout << "GPU TIME: " << TEST_TIME_END(gpu) << endl;
     TEST_TIME_START(cpu);
 
     for (auto j = 0; j < (*readFrameCnt); j++) {
@@ -217,11 +203,9 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
         outputSize->push_back(outputLengLocal[j]+headerSize);
     }
 
-    cout << "CPU TIME: " << TEST_TIME_END(cpu) << endl << endl;
+    cout << "CPU TIME: " << TEST_TIME_END(cpu) << endl;
 
-    // delete[] hYOutChannel;
-    // delete[] hCbOutChannel;
-    // delete[] hCrOutChannel;
+    cout << endl;
 }
 
 void MJPEGEncoderOpenCLImpl::start() {
