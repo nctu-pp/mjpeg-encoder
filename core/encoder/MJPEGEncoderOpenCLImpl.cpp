@@ -209,7 +209,9 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
 }
 
 void MJPEGEncoderOpenCLImpl::start() {
+    TEST_TIME_START(devInitTime);
     this->bootstrap();
+    cout << "Dev Init Time: " << TEST_TIME_END(devInitTime) << endl;
 
     RawVideoReader videoReader(_arguments.input, _arguments.size);
     auto totalFrames = videoReader.getTotalFrames();
