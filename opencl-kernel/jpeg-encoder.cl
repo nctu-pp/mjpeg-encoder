@@ -343,6 +343,6 @@ __kernel void encode(
     f.numBits = 7;
     writeBitCode(outputBuffer, outputLength, frameNo, f, &_bitBuffer, totalPixels);
     outputBuffer[frameNo*maxWidth*maxHeight + outputLength[frameNo]] = 0xFF;
-    outputBuffer[frameNo*maxWidth*maxHeight + outputLength[frameNo]] = 0xFF;
+    outputBuffer[frameNo*maxWidth*maxHeight + outputLength[frameNo]] = 0xD9;
     outputLength[frameNo] = outputLength[frameNo] + 2;
 }
