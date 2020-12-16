@@ -146,20 +146,6 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     auto maxHeight = (this->_cachedPaddingSize).height;
     int current = 0;
 
-    err = clEncode->setArg(0, *dYChannelBuffer);
-    err = clEncode->setArg(1, *dCbChannelBuffer);
-    err = clEncode->setArg(2, *dCrChannelBuffer);
-    err = clEncode->setArg(3, *huffmanLuminanceAC);
-    err = clEncode->setArg(4, *huffmanChrominanceAC);
-    err = clEncode->setArg(5, *huffmanLuminanceDC);
-    err = clEncode->setArg(6, *huffmanChrominanceDC);
-    err = clEncode->setArg(7, *zigzaginv);
-    err = clEncode->setArg(8, *outputBuffer);
-    err = clEncode->setArg(9, *outputLength);
-    err = clEncode->setArg(10, *dOtherArgs);
-    err = clEncode->setArg(11, *codewordsBuffer);
-    this->dieIfClError(err, __LINE__);
-
     TEST_TIME_START(run3);
     err = this->_clCmdQueue->enqueueNDRangeKernel(
             *clEncode,
@@ -380,13 +366,30 @@ void MJPEGEncoderOpenCLImpl::start() {
     cl::Kernel clPaddingAndTransformColorSpace(*_program, "paddingAndTransformColorSpace");
     cl::Kernel clDoDCT(*_program, "doDCT");
     cl::Kernel clDoEncode(*_program, "encode");
-    unsigned int transformArgc = 0;
-    clPaddingAndTransformColorSpace.setArg(transformArgc++, dRgbaBuffer);
 
-    clPaddingAndTransformColorSpace.setArg(transformArgc++, dYChannelBuffer);
-    clPaddingAndTransformColorSpace.setArg(transformArgc++, dCbChannelBuffer);
-    clPaddingAndTransformColorSpace.setArg(transformArgc++, dCrChannelBuffer);
-    clPaddingAndTransformColorSpace.setArg(transformArgc++, dOtherArgs);
+    do {
+        unsigned int transformArgc = 0;
+        clPaddingAndTransformColorSpace.setArg(transformArgc++, dRgbaBuffer);
+        clPaddingAndTransformColorSpace.setArg(transformArgc++, dYChannelBuffer);
+        clPaddingAndTransformColorSpace.setArg(transformArgc++, dCbChannelBuffer);
+        clPaddingAndTransformColorSpace.setArg(transformArgc++, dCrChannelBuffer);
+        clPaddingAndTransformColorSpace.setArg(transformArgc++, dOtherArgs);
+    } while(false);
+
+    do {
+        clDoEncode.setArg(0, dYChannelBuffer);
+        clDoEncode.setArg(1, dCbChannelBuffer);
+        clDoEncode.setArg(2, dCrChannelBuffer);
+        clDoEncode.setArg(3, huffmanLuminanceAC);
+        clDoEncode.setArg(4, huffmanChrominanceAC);
+        clDoEncode.setArg(5, huffmanLuminanceDC);
+        clDoEncode.setArg(6, huffmanChrominanceDC);
+        clDoEncode.setArg(7, zigzaginv);
+        clDoEncode.setArg(8, dOutputBuffer);
+        clDoEncode.setArg(9, dOutputLength);
+        clDoEncode.setArg(10, dOtherArgs);
+        clDoEncode.setArg(11, codewordsBuffer);
+    } while(false);
 
     this->dieIfClError(
             this->_clCmdQueue->enqueueWriteBuffer(scaledLuminance, CL_TRUE, 0, sizeof(float) * 64, _scaledLuminance),
