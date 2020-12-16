@@ -78,7 +78,7 @@ namespace model {
     {
         uint16_t code;     // JPEG's Huffman codes are limited to 16 bits
         uint8_t numBits;    // number of valid bits
-    }BitCodeStruct;
+    } BitCodeStruct;
 
     class __attribute__ ((packed)) BitCode
     {

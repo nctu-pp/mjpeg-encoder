@@ -17,6 +17,7 @@ MJPEGEncoderOpenCLImpl::MJPEGEncoderOpenCLImpl(const Arguments &arguments)
     this->_clCmdQueue = nullptr;
     this->_maxWorkGroupSize = 0;
     this->_maxMemoryAllocSize = 0;
+    this->_maxGlobalMemorySize = 0;
 
     // if (_writeIntermediateResult) {
     //     writeBuffer(
@@ -217,9 +218,14 @@ void MJPEGEncoderOpenCLImpl::start() {
         assert(this->_maxWorkItems[0] == this->_maxWorkItems[1]);
     } while (false);
 
-    auto maxFrameAllowedReadInMemory = this->_maxMemoryAllocSize / (
-            (_cachedPaddingSize.width * _cachedPaddingSize.height) * sizeof(float) * 2 // times 2 for input and output
-            + 64 * 3 * sizeof(float) // DCT table
+    auto maxFrameAllowedReadInMemory = this->_maxGlobalMemorySize / (
+            totalPixels * (
+                    sizeof(color::RGBA) +
+                    sizeof(float) * 3 * 2
+            ) + 64*2+256 * sizeof(BitCodeStruct) * 4 + 64
+              + sizeof(BitCodeStruct) * 2 * CodeWordLimit
+              + sizeof(char) * totalPixels * maxBatchFrames
+              + sizeof(int) * maxBatchFrames
     );
 
     maxBatchFrames = std::min(maxFrameAllowedReadInMemory, maxBatchFrames);
@@ -544,6 +550,7 @@ void MJPEGEncoderOpenCLImpl::bootstrap() {
     _maxWorkItems = firstMatchDevice->getInfo<CL_DEVICE_MAX_WORK_ITEM_SIZES>();
     _maxWorkGroupSize = firstMatchDevice->getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
     _maxMemoryAllocSize = firstMatchDevice->getInfo<CL_DEVICE_MAX_MEM_ALLOC_SIZE>();
+    _maxGlobalMemorySize = firstMatchDevice->getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>();
 
     _context = new cl::Context({*_device});
 
@@ -551,7 +558,9 @@ void MJPEGEncoderOpenCLImpl::bootstrap() {
 
     _program = new cl::Program(*_context, kernelCode);
 
-    auto buildRet = _program->build({*_device});
+    const char* buildOpts = "-cl-mad-enable -cl-unsafe-math-optimizations -cl-fast-relaxed-math -cl-strict-aliasing";
+
+    auto buildRet = _program->build({*_device}, buildOpts);
     if (buildRet == CL_BUILD_PROGRAM_FAILURE) {
         auto buildInfo = _program->getBuildInfo<CL_PROGRAM_BUILD_LOG>(*_device);
         cerr << buildInfo << endl;
