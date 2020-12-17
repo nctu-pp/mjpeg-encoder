@@ -4,6 +4,7 @@
 
 #include "model/Model.h"
 #include "core/encoder/AbstractMJPEGEncoder.h"
+#include "core/Utils.h"
 
 using namespace std;
 using namespace model;
@@ -25,6 +26,7 @@ void showHelp(char *const exeName) {
 }
 
 int main(int argc, char *argv[]) {
+    TEST_TIME_START(main);
     Arguments arguments{
             .tmpDir = filesystem::temp_directory_path().string(),
             .quality = 100,
@@ -99,5 +101,6 @@ int main(int argc, char *argv[]) {
 
     mjpegEncoder->start();
     mjpegEncoder->finalize();
+    cout << endl << "RUN TIME: " << TEST_TIME_END(main) << endl;
     return 0;
 }
