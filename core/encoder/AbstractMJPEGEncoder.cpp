@@ -235,12 +235,14 @@ void AbstractMJPEGEncoder::writeBitCode(
     bitBuffer.data   <<= data.numBits;
     bitBuffer.data    |= data.code;
     // printf("`%d`", bitBuffer.data);
-    while(bitBuffer.numBits >= 8) {
-        bitBuffer.numBits -= 8;
-        auto oneByte = uint8_t(bitBuffer.data >> bitBuffer.numBits);
-        output.emplace_back(oneByte);
-        if (oneByte == 0xFF)
-            output.emplace_back(0);
+    if(bitBuffer.numBits >= 48) {
+        while(bitBuffer.numBits >= 8) {
+            bitBuffer.numBits -= 8;
+            auto oneByte = uint8_t(bitBuffer.data >> bitBuffer.numBits);
+            output.emplace_back(oneByte);
+            if (oneByte == 0xFF)
+                output.emplace_back(0);
+        }
     }
 };
 

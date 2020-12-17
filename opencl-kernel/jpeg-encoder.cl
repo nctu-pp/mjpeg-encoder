@@ -196,7 +196,7 @@ typedef struct __attribute__ ((packed)) _BitCodeStruct
 
 typedef struct _BitBuffer
 {
-    int data; // actually only at most 24 bits are used
+    unsigned long long data; // actually only at most 16*3 = 48 bits are used
     unsigned char numBits; // number of valid bits (the right-most bits)
 } BitBuffer;
 
@@ -208,19 +208,21 @@ void writeBitCode(
     BitBuffer *bitbuffer,
     int totalPixels
 ) {
-    (*bitbuffer).numBits += data.numBits;
-    (*bitbuffer).data   <<= data.numBits;
-    (*bitbuffer).data    |= data.code;
-    while((*bitbuffer).numBits >= 8) {
-        (*bitbuffer).numBits -= 8;
-        unsigned char oneByte = (unsigned char)((*bitbuffer).data >> (*bitbuffer).numBits);
-        output[frameNo * totalPixels + index[frameNo]] = oneByte;
-        index[frameNo] = index[frameNo] + 1;
-        if (oneByte == 0xFF) {
-            output[frameNo * totalPixels + index[frameNo]] = 0;
+    bitbuffer->numBits += data.numBits;
+    bitbuffer->data   <<= data.numBits;
+    bitbuffer->data    |= data.code;
+    if (bitbuffer->numBits > 48) {
+        while (bitbuffer->numBits >= 8) {
+            bitbuffer->numBits -= 8;
+            unsigned char oneByte = (unsigned char) (bitbuffer->data >> bitbuffer->numBits);
+            output[frameNo * totalPixels + index[frameNo]] = oneByte;
             index[frameNo] = index[frameNo] + 1;
+            if (oneByte == 0xFF) {
+                output[frameNo * totalPixels + index[frameNo]] = 0;
+                index[frameNo] = index[frameNo] + 1;
+            }
         }
-    }    
+    }
 }
 
 short encodeBlock(

@@ -158,12 +158,12 @@ namespace core::encoder {
 
         struct BitBuffer
         {
-                int32_t data    = 0; // actually only at most 24 bits are used
-                uint8_t numBits = 0; // number of valid bits (the right-most bits)
-                inline void init() {
-                        data = 0;
-                        numBits = 0;
-                }
+            uint64_t data = 0; // actually only at most 16*3 = 48 bits are used
+            uint8_t numBits = 0; // number of valid bits (the right-most bits)
+            inline void init() {
+                data = 0;
+                numBits = 0;
+            }
         };
 
         void doDCT(
