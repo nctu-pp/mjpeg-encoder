@@ -67,6 +67,7 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     auto outputBuffer = (cl::Buffer *) sharedData[argc++];
     auto outputLength = (cl::Buffer *) sharedData[argc++];
     auto hOutputBuffer = (char*) sharedData[argc++];
+    auto dOutputBufferSize = *((size_t*) sharedData[argc++]);
 
     cl_int err = 0;
     cl::Event transformEvent, yDctEvent, cbDctEvent, crDctEvent, encodeEvent;
@@ -172,7 +173,7 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     this->dieIfClError(err, __LINE__);
 
     err = _clCmdQueue->enqueueReadBuffer(*outputBuffer, CL_TRUE,
-                                         0, sizeof(char) * (*totalPixels) * (*readFrameCnt),
+                                         0, dOutputBufferSize,
                                          hOutputBuffer);
     this->dieIfClError(err, __LINE__);
     cout << "DATA READ BACK TIME: " << TEST_TIME_END(readTime) << endl;
@@ -352,10 +353,10 @@ void MJPEGEncoderOpenCLImpl::start() {
         }
 
         // copy BitCode to BitCodeStruct and shift -2048~2048 to 0~4096
-        BitCodeStruct codewords_tmp[2*CodeWordLimit];
-        for (int i = 0; i < 2*CodeWordLimit; ++i) {
-            codewords_tmp[i].code = codewords[i-CodeWordLimit+1].code;
-            codewords_tmp[i].numBits = codewords[i-CodeWordLimit+1].numBits;
+        BitCodeStruct codewords_tmp[2 * CodeWordLimit];
+        for (int i = 0; i < 2 * CodeWordLimit - 1; ++i) {
+            codewords_tmp[i].code = codewords[i - CodeWordLimit].code;
+            codewords_tmp[i].numBits = codewords[i - CodeWordLimit + 1].numBits;
         }
         this->dieIfClError(
                 this->_clCmdQueue->enqueueWriteBuffer(codewordsBuffer, CL_TRUE, 0,
@@ -364,9 +365,10 @@ void MJPEGEncoderOpenCLImpl::start() {
         );
     } while(false);
 
-    cl::Buffer dOutputBuffer(*_context, CL_MEM_READ_WRITE, sizeof(char) * batchDataSizeOneChannel, nullptr, &bufferDeclErr);
-    cl::Buffer dOutputLength(*_context, CL_MEM_READ_WRITE, sizeof(int) * maxBatchFrames, nullptr, &bufferDeclErr);
-    char *hOutBuffer = new char[sizeof(char) * batchDataSizeOneChannel];
+    size_t dOutputBufferSize = sizeof(char) * batchDataSizeOneChannel * 2;
+    cl::Buffer dOutputBuffer(*_context, CL_MEM_WRITE_ONLY, dOutputBufferSize, nullptr, &bufferDeclErr);
+    cl::Buffer dOutputLength(*_context, CL_MEM_WRITE_ONLY, sizeof(int) * maxBatchFrames, nullptr, &bufferDeclErr);
+    char *hOutBuffer = new char[dOutputBufferSize];
 
     // cl program
     cl::Kernel clPaddingAndTransformColorSpace(*_program, "paddingAndTransformColorSpace");
@@ -443,6 +445,7 @@ void MJPEGEncoderOpenCLImpl::start() {
             &dOutputBuffer,
             &dOutputLength,
             hOutBuffer,
+            &dOutputBufferSize,
     };
 
 //     string yuvDataTmpPath = _arguments.tmpDir + "/yuv444.raw";
