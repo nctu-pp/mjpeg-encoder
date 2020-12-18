@@ -9,8 +9,8 @@ mkdir -p -m=700 $targetDir
 pushd $targetDir
 
 cmake \
-  -DCMAKE_C_COMPILER=$(which clang-11 clang | head -n1) \
-  -DCMAKE_CXX_COMPILER=$(which clang++-11 clang++ | head -n1) \
+  -DCMAKE_C_COMPILER=$(which gcc-10 clang-11 clang | head -n1) \
+  -DCMAKE_CXX_COMPILER=$(which g++-10 clang++-11 clang++ | head -n1) \
   -DCMAKE_BUILD_TYPE=Release ../
 
 make -j$(nproc --all)
