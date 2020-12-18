@@ -36,6 +36,14 @@ void checkArguments(const Arguments &arguments) {
         if (stat(arguments.input.c_str(), &statBuffer) != 0) {
             cerr << "Cannot found file [" << arguments.input << "]." << endl;
             hasError = true;
+        } else {
+            size_t perFrameSize = arguments.size.width * arguments.size.height * sizeof(model::color::RGBA);
+            if (statBuffer.st_size % perFrameSize != 0) {
+                cerr << "Invalid input file or resolution, file size " << statBuffer.st_size
+                     << " not divisible by " << perFrameSize
+                     << " (" << arguments.size.width << "x" << arguments.size.height << ")." << endl;
+                hasError = true;
+            }
         }
     }
 
