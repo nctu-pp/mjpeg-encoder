@@ -1,6 +1,7 @@
 #include <iostream>
 #include <filesystem>
 #include <getopt.h>
+#include <sys/stat.h>
 
 #include "model/Model.h"
 #include "core/encoder/AbstractMJPEGEncoder.h"
@@ -23,6 +24,37 @@ void showHelp(char *const exeName) {
             << "\t-T --temp-dir <path>\tTemp dir, default is system temp dir." << endl
             << "\t-d --device <cpu|gpu>, default is cpu." << endl
             << "\t-h --help\tShow usage." << endl;
+}
+
+void checkArguments(const Arguments &arguments) {
+    bool hasError = false;
+    struct stat statBuffer;
+    if (arguments.input.empty()) {
+        cerr << "Missing argument [-i]." << endl;
+        hasError = true;
+    } else {
+        if (stat(arguments.input.c_str(), &statBuffer) != 0) {
+            cerr << "Cannot found file [" << arguments.input << "]." << endl;
+            hasError = true;
+        }
+    }
+
+    if (arguments.output.empty()) {
+        cerr << "Missing argument [-o]." << endl;
+        hasError = true;
+    }
+    if (arguments.size.height <= 0 || arguments.size.width <= 0) {
+        cerr << "Missing or wrong argument [-s]." << endl;
+        hasError = true;
+    }
+    if (arguments.fps <= 0) {
+        cerr << "Missing or wrong argument [-r]." << endl;
+        hasError = true;
+    }
+
+    if (hasError) {
+        exit(-1);
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -50,7 +82,7 @@ int main(int argc, char *argv[]) {
                 {"threads",  required_argument, nullptr, 't'},
                 {"temp-dir", required_argument, nullptr, 'T'},
                 {"kind",     required_argument, nullptr, 'k'},
-                {"device",     required_argument, nullptr, 'd'},
+                {"device",   required_argument, nullptr, 'd'},
                 {"help",     no_argument,       nullptr, 'h'},
         };
         char opt;
@@ -96,6 +128,8 @@ int main(int argc, char *argv[]) {
             }
         }
     } while (false);
+
+    checkArguments(arguments);
 
     auto mjpegEncoder = core::encoder::AbstractMJPEGEncoder::getInstance(arguments);
 
