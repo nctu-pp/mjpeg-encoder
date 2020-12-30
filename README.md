@@ -42,6 +42,8 @@ Options:
         -h --help       Show usage.
 ```
 
+Before run OpenCL version, ensure the folder `opencl-kernel` in your working directory.
+
 
 
 ## Sample Videos
