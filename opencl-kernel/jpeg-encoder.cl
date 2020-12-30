@@ -196,39 +196,47 @@ typedef struct __attribute__ ((packed)) _BitCodeStruct
 
 typedef struct _BitBuffer
 {
+#ifdef __WIN32__
+    int data; // actually only at most 24 bits are used
+#else
     unsigned long long data; // actually only at most 16*3 = 48 bits are used
+#endif
     unsigned char numBits; // number of valid bits (the right-most bits)
 } BitBuffer;
 
 void writeBitCode(
     __global unsigned char *output,
-    __global int *index,
-    size_t frameNo,
+    __global int *len,
     BitCodeStruct data,
     BitBuffer *bitbuffer,
     int totalPixels
 ) {
+    int tmpLen = *len;
     bitbuffer->numBits += data.numBits;
     bitbuffer->data   <<= data.numBits;
     bitbuffer->data    |= data.code;
+#ifndef __WIN32__
     if (bitbuffer->numBits > 48) {
+#endif
         while (bitbuffer->numBits >= 8) {
             bitbuffer->numBits -= 8;
             unsigned char oneByte = (unsigned char) (bitbuffer->data >> bitbuffer->numBits);
-            output[frameNo * totalPixels + index[frameNo]] = oneByte;
-            index[frameNo] = index[frameNo] + 1;
+            output[tmpLen++] = oneByte;
+
             if (oneByte == 0xFF) {
-                output[frameNo * totalPixels + index[frameNo]] = 0;
-                index[frameNo] = index[frameNo] + 1;
+                output[tmpLen++] = 0;
             }
         }
+#ifndef __WIN32__
     }
+#endif
+
+    *len = tmpLen;
 }
 
 short encodeBlock(
     __global unsigned char *output,
-    __global int *index,
-    int frameNo,
+    __global int *len,
     BitBuffer *bitBuffer,
     float block[8][8],
     short lastDC,
@@ -256,11 +264,12 @@ short encodeBlock(
 
     int diff = DC - lastDC;
     if (diff == 0)
-        writeBitCode(output, index, frameNo, huffmanDC[0x00], bitBuffer, totalPixels);
+        writeBitCode(output, len, huffmanDC[0x00], bitBuffer, totalPixels);
     else
     {
-        writeBitCode(output, index, frameNo, huffmanDC[codewords[diff+2047].numBits], bitBuffer, totalPixels);
-        writeBitCode(output, index, frameNo, codewords[diff+2047], bitBuffer, totalPixels);
+        __global BitCodeStruct* bits = codewords + (diff + 2047);
+        writeBitCode(output, len, huffmanDC[bits->numBits], bitBuffer, totalPixels);
+        writeBitCode(output, len, *bits, bitBuffer, totalPixels);
     }
     
     // encode ACs (quantized[1..63])
@@ -274,21 +283,21 @@ short encodeBlock(
             // split into blocks of at most 16 consecutive zeros
             if (offset > 0xF0) // remember, the counter is in the upper 4 bits, 0xF = 15
             {
-                writeBitCode(output, index, frameNo, huffmanAC[0xF0], bitBuffer, totalPixels);
+                writeBitCode(output, len, huffmanAC[0xF0], bitBuffer, totalPixels);
                 offset = 0;
             }
             i++;
         }
 
         // combine number of zeros with the number of bits of the next non-zero value
-        writeBitCode(output, index, frameNo, huffmanAC[offset + codewords[quantized[i]+2047].numBits], bitBuffer, totalPixels);
-        writeBitCode(output, index, frameNo, codewords[quantized[i]+2047], bitBuffer, totalPixels);
+        writeBitCode(output, len, huffmanAC[offset + codewords[quantized[i]+2047].numBits], bitBuffer, totalPixels);
+        writeBitCode(output, len, codewords[quantized[i]+2047], bitBuffer, totalPixels);
         offset = 0;
     }
 
     // send end-of-block code (0x00), only needed if there are trailing zeros
     if (posNonZero < 8*8 - 1) // = 63
-        writeBitCode(output, index, frameNo, huffmanAC[0x00], bitBuffer, totalPixels);
+        writeBitCode(output, len, huffmanAC[0x00], bitBuffer, totalPixels);
     return DC;
 }
 
@@ -304,7 +313,8 @@ __kernel void encode(
         __global unsigned char *outputBuffer,
         __global int *outputLength,
         __global int *otherArguments,
-        __global BitCodeStruct *codewords
+        __global BitCodeStruct *codewords,
+        int perFrameOutputBufferSize
 ) {
     int maxWidth = otherArguments[2];
     int maxHeight = otherArguments[3];
@@ -315,7 +325,9 @@ __kernel void encode(
     _bitBuffer.data = 0;
     _bitBuffer.numBits = 0;
 
-    outputLength[frameNo] = 0;
+    __global unsigned char *outputBufferStart = outputBuffer + perFrameOutputBufferSize * frameNo;
+    __global int* outBufferLen = outputLength + frameNo;
+    *outBufferLen = 0;
 
     short lastYDC = 0, lastCbDC = 0, lastCrDC = 0;
     
@@ -332,19 +344,18 @@ __kernel void encode(
                 }
             }
 
-            lastYDC = encodeBlock(outputBuffer, outputLength, frameNo, &_bitBuffer, Y, lastYDC, huffmanLuminanceDC, huffmanLuminanceAC,
+            lastYDC = encodeBlock(outputBufferStart, outBufferLen, &_bitBuffer, Y, lastYDC, huffmanLuminanceDC, huffmanLuminanceAC,
                                     codewords, zigzaginv, totalPixels);
-            lastCbDC = encodeBlock(outputBuffer, outputLength, frameNo, &_bitBuffer, Cb, lastCbDC, huffmanChrominanceDC, huffmanChrominanceAC,
+            lastCbDC = encodeBlock(outputBufferStart, outBufferLen, &_bitBuffer, Cb, lastCbDC, huffmanChrominanceDC, huffmanChrominanceAC,
                                     codewords, zigzaginv, totalPixels);
-            lastCrDC = encodeBlock(outputBuffer, outputLength, frameNo, &_bitBuffer, Cr, lastCrDC, huffmanChrominanceDC, huffmanChrominanceAC,
+            lastCrDC = encodeBlock(outputBufferStart, outBufferLen, &_bitBuffer, Cr, lastCrDC, huffmanChrominanceDC, huffmanChrominanceAC,
                                     codewords, zigzaginv, totalPixels);      
         }
     }
     BitCodeStruct f;
     f.code = 0x7F;
     f.numBits = 7;
-    writeBitCode(outputBuffer, outputLength, frameNo, f, &_bitBuffer, totalPixels);
-    outputBuffer[frameNo*maxWidth*maxHeight + outputLength[frameNo]] = 0xFF;
-    outputBuffer[frameNo*maxWidth*maxHeight + outputLength[frameNo]] = 0xD9;
-    outputLength[frameNo] = outputLength[frameNo] + 2;
+    writeBitCode(outputBufferStart, outBufferLen, f, &_bitBuffer, totalPixels);
+    outputBufferStart[(*outBufferLen)++] = 0xFF;
+    outputBufferStart[(*outBufferLen)++] = 0xD9;
 }

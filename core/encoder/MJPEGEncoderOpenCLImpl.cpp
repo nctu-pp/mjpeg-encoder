@@ -68,6 +68,7 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     auto outputLength = (cl::Buffer *) sharedData[argc++];
     auto hOutputBuffer = (char*) sharedData[argc++];
     auto dOutputBufferSize = *((size_t*) sharedData[argc++]);
+    auto perFrameOutputBufferSize = *((size_t*) sharedData[argc++]);
 
     cl_int err = 0;
     cl::Event transformEvent, yDctEvent, cbDctEvent, crDctEvent, encodeEvent;
@@ -183,8 +184,8 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     for (auto j = 0; j < (*readFrameCnt); j++) {
         if (!outputLengLocal[j]) continue;
 
-        char *outputBufferLocal = hOutputBuffer + j * (*totalPixels);
-        
+        char *outputBufferLocal = hOutputBuffer + j * perFrameOutputBufferSize;
+
         output.insert(output.end(), commonJpegHeader.begin(), commonJpegHeader.end());
         output.insert(output.end(), outputBufferLocal,
                          outputBufferLocal + outputLengLocal[j]);
@@ -355,7 +356,7 @@ void MJPEGEncoderOpenCLImpl::start() {
         // copy BitCode to BitCodeStruct and shift -2048~2048 to 0~4096
         BitCodeStruct codewords_tmp[2 * CodeWordLimit];
         for (int i = 0; i < 2 * CodeWordLimit - 1; ++i) {
-            codewords_tmp[i].code = codewords[i - CodeWordLimit].code;
+            codewords_tmp[i].code = codewords[i - CodeWordLimit + 1].code;
             codewords_tmp[i].numBits = codewords[i - CodeWordLimit + 1].numBits;
         }
         this->dieIfClError(
@@ -365,10 +366,13 @@ void MJPEGEncoderOpenCLImpl::start() {
         );
     } while(false);
 
-    size_t dOutputBufferSize = sizeof(char) * batchDataSizeOneChannel * 2;
-    cl::Buffer dOutputBuffer(*_context, CL_MEM_WRITE_ONLY, dOutputBufferSize, nullptr, &bufferDeclErr);
+    // HACK: assume frame never bigger than original size
+    size_t perFrameOutputBufferSize = totalPixels * 3;
+    size_t dOutputBufferSize = maxBatchFrames * perFrameOutputBufferSize;
     cl::Buffer dOutputLength(*_context, CL_MEM_WRITE_ONLY, sizeof(int) * maxBatchFrames, nullptr, &bufferDeclErr);
     char *hOutBuffer = new char[dOutputBufferSize];
+    cl::Buffer dOutputBuffer(*_context, CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR,
+                             dOutputBufferSize, hOutBuffer, &bufferDeclErr);
 
     // cl program
     cl::Kernel clPaddingAndTransformColorSpace(*_program, "paddingAndTransformColorSpace");
@@ -397,6 +401,7 @@ void MJPEGEncoderOpenCLImpl::start() {
         clDoEncode.setArg(9, dOutputLength);
         clDoEncode.setArg(10, dOtherArgs);
         clDoEncode.setArg(11, codewordsBuffer);
+        clDoEncode.setArg(12, (cl_int) perFrameOutputBufferSize);
     } while(false);
 
     this->dieIfClError(
@@ -446,6 +451,7 @@ void MJPEGEncoderOpenCLImpl::start() {
             &dOutputLength,
             hOutBuffer,
             &dOutputBufferSize,
+            &perFrameOutputBufferSize,
     };
 
 //     string yuvDataTmpPath = _arguments.tmpDir + "/yuv444.raw";
@@ -561,7 +567,11 @@ void MJPEGEncoderOpenCLImpl::bootstrap() {
 
     _program = new cl::Program(*_context, kernelCode);
 
+#ifdef __WIN32__
+    const char* buildOpts = "-cl-mad-enable -cl-unsafe-math-optimizations -cl-fast-relaxed-math -cl-strict-aliasing -D__WIN32__";
+#else
     const char* buildOpts = "-cl-mad-enable -cl-unsafe-math-optimizations -cl-fast-relaxed-math -cl-strict-aliasing";
+#endif
 
     auto buildRet = _program->build({*_device}, buildOpts);
     if (buildRet == CL_BUILD_PROGRAM_FAILURE) {
