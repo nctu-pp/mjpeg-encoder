@@ -27,14 +27,15 @@ If cmake cannot found your OpenCL, you can modify build script, and set followin
 ```
 Usage: mjpeg_encoder options
 Options:
-        -i --input <path>       RAW Video Path.
-        -s --size <width>x<height>      Video resolution.
-        -r --fps <fps>  Video FPS.
-        -o --output <path>      Output path.
-        -q --quality <number, [0-100]>  JPEG quality.
-        -t --threads <number>   Use number threads.
-        -k --kind <serial|openmp|opencl>        Select implementation, default is serial.
-        -T --temp-dir <path>    Temp dir, default is system temp dir.
-        -d --device <cpu|gpu>, default is cpu.
-        -h --help       Show usage.
+        -i --input <path>	RAW Video Path.
+        -s --size <width>x<height>	Video resolution.
+        -r --fps <fps>	Video FPS.
+        -o --output <path>	Output path.
+        -q --quality <number, [0-100]>	JPEG quality.
+        -t --threads <number>	Use number threads.
+        -k --kind <serial|openmp|opencl>	Select implementation, default is serial.
+        -T --temp-dir <path>	Temp dir, default is system temp dir.
+        -d --device <cpu|gpu>	default is cpu.
+        -m --measure	Show time measure message.
+        -h --help	Show usage.
 ```

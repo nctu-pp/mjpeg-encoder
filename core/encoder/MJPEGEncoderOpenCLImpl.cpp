@@ -91,7 +91,10 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     this->dieIfClError(err, __LINE__);
 
     this->dieIfClError(transformEvent.wait(), __LINE__);
-    cout << "PaddingAndTransformColorSpace Time " << TEST_TIME_END(run1) << endl;
+
+    if (this->_arguments.showMeasure) {
+        cout << "PaddingAndTransformColorSpace Time " << TEST_TIME_END(run1) << endl;
+    }
 
     auto doDctAndQuantization = [
             &blockDimPtr,
@@ -143,7 +146,10 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
                     yDctEvent, cbDctEvent, crDctEvent
             });
     this->dieIfClError(cl::Event::waitForEvents(dctAndQuantizationEvents), __LINE__);
-    cout << "dctAndQuantization Time " << TEST_TIME_END(run2) << endl;
+
+    if (this->_arguments.showMeasure) {
+        cout << "DctAndQuantization Time " << TEST_TIME_END(run2) << endl;
+    }
 
     auto maxWidth = (this->_cachedPaddingSize).width;
     auto maxHeight = (this->_cachedPaddingSize).height;
@@ -161,9 +167,14 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
     this->dieIfClError(err, __LINE__);
 
     this->dieIfClError(encodeEvent.wait(), __LINE__);
-    cout << "clEncode Time " << TEST_TIME_END(run3) << endl;
 
-    cout << "GPU TIME: " << TEST_TIME_END(gpu) << endl;
+    if (this->_arguments.showMeasure) {
+        cout << "Encode Time " << TEST_TIME_END(run3) << endl;
+    }
+
+    if (this->_arguments.showMeasure) {
+        cout << "GPU TIME: " << TEST_TIME_END(gpu) << endl;
+    }
 
     TEST_TIME_START(readTime);
     int outputLengLocal[*readFrameCnt];
@@ -177,7 +188,10 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
                                          0, dOutputBufferSize,
                                          hOutputBuffer);
     this->dieIfClError(err, __LINE__);
-    cout << "DATA READ BACK TIME: " << TEST_TIME_END(readTime) << endl;
+
+    if (this->_arguments.showMeasure) {
+        cout << "DATA READ BACK TIME: " << TEST_TIME_END(readTime) << endl;
+    }
 
     TEST_TIME_START(cpu);
 
@@ -192,15 +206,19 @@ void MJPEGEncoderOpenCLImpl::encodeJpeg(
         outputSize->push_back(outputLengLocal[j]+headerSize);
     }
 
-    cout << "CPU TIME: " << TEST_TIME_END(cpu) << endl;
-
-    cout << endl;
+    if (this->_arguments.showMeasure) {
+        cout << "CPU TIME: " << TEST_TIME_END(cpu) << endl;
+        cout << endl;
+    }
 }
 
 void MJPEGEncoderOpenCLImpl::start() {
     TEST_TIME_START(devInitTime);
     this->bootstrap();
-    cout << "Dev Init Time: " << TEST_TIME_END(devInitTime) << endl;
+
+    if (this->_arguments.showMeasure) {
+        cout << "Dev Init Time: " << TEST_TIME_END(devInitTime) << endl;
+    }
 
     RawVideoReader videoReader(_arguments.input, _arguments.size);
     auto totalFrames = videoReader.getTotalFrames();

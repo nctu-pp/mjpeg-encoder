@@ -6,6 +6,7 @@
 #include "MJPEGEncoderSerialImpl.h"
 #include "MJPEGEncoderOpenMPImpl.h"
 #include "MJPEGEncoderOpenCLImpl.h"
+#include "../Utils.h"
 
 using namespace core::encoder;
 
@@ -364,6 +365,8 @@ void AbstractMJPEGEncoder::initJpegTable() {
 void AbstractMJPEGEncoder::transformColorSpace(
         color::RGBA *__restrict rgbaBuffer, color::YCbCr444 &yuv444Buffer,
         const Size &srcSize, const Size &dstSize) const {
+
+    TEST_TIME_START(run1);
     const auto totalRows = dstSize.height;
     const auto totalCols = dstSize.width;
 
@@ -399,6 +402,10 @@ void AbstractMJPEGEncoder::transformColorSpace(
         memcpy(yChannelBase + offset, localYChannel, sizeof(float) * totalCols);
         memcpy(cbChannelBase + offset, localCbChannel, sizeof(float) * totalCols);
         memcpy(crChannelBase + offset, localCrChannel, sizeof(float) * totalCols);
+    }
+
+    if (this->_arguments.showMeasure) {
+        cout << "PaddingAndTransformColorSpace Time " << TEST_TIME_END(run1) << endl;
     }
 }
 

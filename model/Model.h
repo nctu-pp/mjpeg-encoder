@@ -113,6 +113,7 @@ namespace model {
         int numThreads = 0;
         ImplKind kind = Serial;
         CLDevice device = CPU;
+        bool showMeasure = false;
     } Arguments;
 
     ImplKind parseImplKind(const string &str);
