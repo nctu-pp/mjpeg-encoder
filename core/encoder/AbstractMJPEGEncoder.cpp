@@ -364,7 +364,7 @@ void AbstractMJPEGEncoder::initJpegTable() {
 
 void AbstractMJPEGEncoder::transformColorSpace(
         color::RGBA *__restrict rgbaBuffer, color::YCbCr444 &yuv444Buffer,
-        const Size &srcSize, const Size &dstSize) {
+        const Size &srcSize, const Size &dstSize) const {
 
     const auto totalRows = dstSize.height;
     const auto totalCols = dstSize.width;
