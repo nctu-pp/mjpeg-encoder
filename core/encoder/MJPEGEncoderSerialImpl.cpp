@@ -93,6 +93,11 @@ void MJPEGEncoderSerialImpl::start() {
              << endl;
     }
     aviOutputStream.close();
+    if (this->_arguments.showMeasure) {
+        cout << "PaddingAndTransformColorSpace Time " << this->_paddingAndTransformColorSpaceTime << endl
+                << "DctAndQuantization Time " << this->_dctAndQuantizationTime << endl
+                << "Encode Time " << this->_encodeTime << endl;
+    }
 
     cout << endl
          << "Video encoded, output file located at " << _arguments.output

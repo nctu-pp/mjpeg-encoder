@@ -36,7 +36,9 @@ namespace core::encoder {
                 const BitCode huffmanDC[256],
                 const BitCode huffmanAC[256],
                 const BitCode *codewords,
-                BitBuffer &bitBuffer
+                BitBuffer &bitBuffer,
+                int *dctTime,
+                int *encodeTime
         );
     };
 }

@@ -53,13 +53,17 @@ namespace core::encoder {
         virtual void transformColorSpace(
                 color::RGBA *__restrict rgbaBuffer, color::YCbCr444 &yuv444Buffer,
                 const Size &srcSize, const Size& dstSize
-        ) const;
+        );
 
         Size getPaddingSize() const;
 
         Arguments _arguments;
         Size _cachedPaddingSize{0, 0};
         vector<char> commonJpegHeader;
+
+        int _paddingAndTransformColorSpaceTime = 0;
+        int _dctAndQuantizationTime = 0;
+        int _encodeTime = 0;
 
         static void writeBuffer(const string &path, char *buffer, size_t len, bool append = false);
 

@@ -46,6 +46,12 @@ void MJPEGEncoderOpenMPImpl::start() {
         yuvFrameBuffer[i] = new color::YCbCr444(this->_cachedPaddingSize);  
     // color::YCbCr444 yuvFrameBuffer(this->_cachedPaddingSize);
 
+    int *paddingTimeBugffer, *dctTimeBuffer, *encodeTimeBuffer, *encodeBlockTimeBuffer;
+    paddingTimeBugffer = new int[maxThreads] {0};
+    dctTimeBuffer = new int[maxThreads] {0};
+    encodeTimeBuffer = new int[maxThreads] {0};
+    encodeBlockTimeBuffer = new int[maxThreads] {0};
+
     // share outputBuffer to reduce re-alloc
     vector<char> outputBuffer[maxThreads];
 
@@ -71,13 +77,18 @@ void MJPEGEncoderOpenMPImpl::start() {
                 totalFrames, groupBuffer, outputBuffer, \
                 readCnt, yuvFrameBuffer, \
                 maxThreads, frameSize, \
-                totalPixels, aviOutputStream, totalTimeStr, cout \
+                totalPixels, aviOutputStream, totalTimeStr, cout, \
+                paddingTimeBugffer, dctTimeBuffer, encodeTimeBuffer, encodeBlockTimeBuffer \
             ) schedule(static, 1)
         for(int i = 0 ; i < readCnt; i++){
             int tid = omp_get_thread_num();
 
             void *passData[] = {
                 yuvFrameBuffer[tid],
+                &paddingTimeBugffer[tid],
+                &dctTimeBuffer[tid],
+                &encodeTimeBuffer[tid],
+                &encodeBlockTimeBuffer[tid],
                 nullptr,
             };
 
@@ -113,6 +124,19 @@ void MJPEGEncoderOpenMPImpl::start() {
          << endl;
     aviOutputStream.close();
 
+    if (this->_arguments.showMeasure) {
+        for (int i = 1; i < maxThreads; i++) {
+            paddingTimeBugffer[0] += paddingTimeBugffer[i];
+            dctTimeBuffer[0] += dctTimeBuffer[i];
+            encodeTimeBuffer[0] += encodeTimeBuffer[i];
+            encodeBlockTimeBuffer[0] += encodeBlockTimeBuffer[i];
+        }
+        int totalEncodeTime = encodeBlockTimeBuffer[0]/maxThreads;
+        float dctAndQuantizationRatio = (float)dctTimeBuffer[0]/(dctTimeBuffer[0]+encodeTimeBuffer[0]);
+        cout << "PaddingAndTransformColorSpace Time " << paddingTimeBugffer[0]/maxThreads << endl
+                << "DctAndQuantization Time " << totalEncodeTime * dctAndQuantizationRatio << endl
+                << "Encode Time " << totalEncodeTime * (1-dctAndQuantizationRatio) << endl;
+    }
     cout << endl
          << "Video encoded, output file located at " << _arguments.output
          << endl;
@@ -121,6 +145,10 @@ void MJPEGEncoderOpenMPImpl::start() {
         delete yuvFrameBuffer[i];
     }
     delete[] groupBuffer;
+    delete[] paddingTimeBugffer;
+    delete[] dctTimeBuffer;
+    delete[] encodeTimeBuffer;
+    delete[] encodeBlockTimeBuffer;
 }
 
 void MJPEGEncoderOpenMPImpl::finalize() {
@@ -130,8 +158,16 @@ void MJPEGEncoderOpenMPImpl::finalize() {
 void MJPEGEncoderOpenMPImpl::encodeJpeg(color::RGBA *originalData, int length, vector<char> &output,
                                         void **sharedData) {
     auto yuvFrameBuffer = static_cast<color::YCbCr444 *>(sharedData[0]);
+    auto paddingTime = static_cast<int *>(sharedData[1]);
+    auto dctTime = static_cast<int *>(sharedData[2]);
+    auto encodeTime = static_cast<int *>(sharedData[3]);
+    auto encodeBlockTime = static_cast<int *>(sharedData[4]);
+    TEST_TIME_START(padding);
     transformColorSpace(originalData, *yuvFrameBuffer, this->_arguments.size, this->_cachedPaddingSize);
-
+    if (this->_arguments.showMeasure) {
+        // cout << "PaddingAndTransformColorSpace Time " << TEST_TIME_END(run1) << endl;
+        *paddingTime += TEST_TIME_END(padding);
+    }
     // auto localBitBuffer = static_cast<BitBuffer *>(sharedData[1]);
     // localBitBuffer->init();
 
@@ -163,9 +199,10 @@ void MJPEGEncoderOpenMPImpl::encodeJpeg(color::RGBA *originalData, int length, v
     const auto maxWidth = (this->_cachedPaddingSize).width;
     const auto maxHeight = (this->_cachedPaddingSize).height;
     float Y[8][8], Cb[8][8], Cr[8][8];
-    vector<BitCode> YBitCodeBuffer, CbBitCodeBuffer, CrBitCodeBuffer;
+
     vector<int> YSize, CbSize, CrSize;
 
+    TEST_TIME_START(run1);
     for (auto mcuY = 0; mcuY < maxHeight; mcuY += 8) { // each step is either 8 or 16 (=mcuSize)
         for (auto mcuX = 0; mcuX < maxWidth; mcuX += 8) {
             for (auto deltaY = 0; deltaY < 8; ++deltaY) {
@@ -178,9 +215,9 @@ void MJPEGEncoderOpenMPImpl::encodeJpeg(color::RGBA *originalData, int length, v
                     Cr[deltaY][deltaX] = yuvFrameBuffer->getCrChannel()[pixelPos];
                 }
             }
-            lastYDC =  encodeBlock(output, Y, _scaledLuminance, lastYDC, _huffmanLuminanceDC, _huffmanLuminanceAC, codewords, localBitBuffer);
-            lastCbDC = encodeBlock(output, Cb, _scaledChrominance, lastCbDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords, localBitBuffer);
-            lastCrDC = encodeBlock(output, Cr, _scaledChrominance, lastCrDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords, localBitBuffer);
+            lastYDC =  encodeBlock(output, Y, _scaledLuminance, lastYDC, _huffmanLuminanceDC, _huffmanLuminanceAC, codewords, localBitBuffer, dctTime, encodeTime);
+            lastCbDC = encodeBlock(output, Cb, _scaledChrominance, lastCbDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords, localBitBuffer, dctTime, encodeTime);
+            lastCrDC = encodeBlock(output, Cr, _scaledChrominance, lastCrDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords, localBitBuffer, dctTime, encodeTime);
 
         } // end mcuX
     } // end mcuY
@@ -189,14 +226,17 @@ void MJPEGEncoderOpenMPImpl::encodeJpeg(color::RGBA *originalData, int length, v
     
     output.emplace_back(0xFF);
     output.emplace_back(0xD9);
+    if (this->_arguments.showMeasure) {
+        *encodeBlockTime += TEST_TIME_END(run1);
+    }
 }
 
 int16_t MJPEGEncoderOpenMPImpl::encodeBlock(vector<char>& output, float block[8][8], const float scaled[8*8], int16_t lastDC,
-                    const BitCode huffmanDC[256], const BitCode huffmanAC[256], const BitCode* codewords, BitBuffer& bitBuffer)
+                    const BitCode huffmanDC[256], const BitCode huffmanAC[256], const BitCode* codewords, BitBuffer& bitBuffer, int* dctTime, int* encodeTime)
 {
     // "linearize" the 8x8 block, treat it as a flat array of 64 floats
     auto block64 = (float*) block;
-
+    TEST_TIME_START(dct);
     // DCT: rows
     for (auto offset = 0; offset < 8; offset++)
         DCT(block64 + offset*8, 1);
@@ -224,6 +264,11 @@ int16_t MJPEGEncoderOpenMPImpl::encodeBlock(vector<char>& output, float block[8]
             posNonZero = i;
     }
 
+    if (this->_arguments.showMeasure) {
+        // cout << "PaddingAndTransformColorSpace Time " << TEST_TIME_END(run1) << endl;
+        *dctTime += TEST_TIME_END(dct);
+    }
+    TEST_TIME_START(encode);
     // same "average color" as previous block ?
     auto diff = DC - lastDC;
     if (diff == 0)
@@ -263,5 +308,11 @@ int16_t MJPEGEncoderOpenMPImpl::encodeBlock(vector<char>& output, float block[8]
     // send end-of-block code (0x00), only needed if there are trailing zeros
     if (posNonZero < 8*8 - 1) // = 63
         writeBitCode(output, huffmanAC[0x00], bitBuffer);
+    
+    if (this->_arguments.showMeasure) {
+        // cout << "PaddingAndTransformColorSpace Time " << TEST_TIME_END(run1) << endl;
+        *encodeTime += TEST_TIME_END(encode);
+    }
+
     return DC;
 }

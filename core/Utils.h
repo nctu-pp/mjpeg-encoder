@@ -12,7 +12,7 @@
 using namespace std;
 
 #define TEST_TIME_START(name) std::chrono::steady_clock::time_point __##name##_begin = std::chrono::steady_clock::now()
-#define TEST_TIME_END(name) (std::chrono::duration_cast<std::chrono::milliseconds>((std::chrono::steady_clock::now() - __##name##_begin)).count())
+#define TEST_TIME_END(name) (std::chrono::duration_cast<std::chrono::microseconds>((std::chrono::steady_clock::now() - __##name##_begin)).count())
 
 namespace core {
     class Utils {

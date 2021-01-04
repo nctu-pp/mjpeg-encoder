@@ -364,9 +364,8 @@ void AbstractMJPEGEncoder::initJpegTable() {
 
 void AbstractMJPEGEncoder::transformColorSpace(
         color::RGBA *__restrict rgbaBuffer, color::YCbCr444 &yuv444Buffer,
-        const Size &srcSize, const Size &dstSize) const {
+        const Size &srcSize, const Size &dstSize) {
 
-    TEST_TIME_START(run1);
     const auto totalRows = dstSize.height;
     const auto totalCols = dstSize.width;
 
@@ -403,10 +402,6 @@ void AbstractMJPEGEncoder::transformColorSpace(
         memcpy(cbChannelBase + offset, localCbChannel, sizeof(float) * totalCols);
         memcpy(crChannelBase + offset, localCrChannel, sizeof(float) * totalCols);
     }
-
-    if (this->_arguments.showMeasure) {
-        cout << "PaddingAndTransformColorSpace Time " << TEST_TIME_END(run1) << endl;
-    }
 }
 
 void AbstractMJPEGEncoder::encodeJpeg(
@@ -415,8 +410,13 @@ void AbstractMJPEGEncoder::encodeJpeg(
         void **sharedData
 ) {
     auto yuvFrameBuffer = static_cast<color::YCbCr444 *>(sharedData[0]);
+    TEST_TIME_START(run1);
     transformColorSpace(originalData, *yuvFrameBuffer, this->_arguments.size, this->_cachedPaddingSize);
 
+    if (this->_arguments.showMeasure) {
+        // cout << "PaddingAndTransformColorSpace Time " << TEST_TIME_END(run1) << endl;
+        this->_paddingAndTransformColorSpaceTime += TEST_TIME_END(run1);
+    }
     BitBuffer& _bitBuffer = *(static_cast<BitBuffer*>(sharedData[4]));
     _bitBuffer.init();
 
@@ -454,6 +454,7 @@ void AbstractMJPEGEncoder::encodeJpeg(
 
     const size_t blockRowSize = sizeof(float) << 3;
 
+    TEST_TIME_START(dct);
     for (auto mcuY = 0; mcuY < maxHeight; mcuY += 8) { // each step is either 8 or 16 (=mcuSize)
         for (auto mcuX = 0; mcuX < maxWidth; mcuX += 8) {
             int offset = mcuY * maxWidth + mcuX;
@@ -485,19 +486,27 @@ void AbstractMJPEGEncoder::encodeJpeg(
             memcpy(crBlock[index][5], yuvFrameBuffer->getCrChannel() + maxWidth * 5 + offset, blockRowSize);
             memcpy(crBlock[index][6], yuvFrameBuffer->getCrChannel() + maxWidth * 6 + offset, blockRowSize);
             memcpy(crBlock[index][7], yuvFrameBuffer->getCrChannel() + maxWidth * 7 + offset, blockRowSize);
-
+    
             doDCT(yBlock[index], _scaledLuminance);
             doDCT(cbBlock[index], _scaledChrominance);
             doDCT(crBlock[index], _scaledChrominance);
         } // end mcuX
     } // end mcuY
+    if (this->_arguments.showMeasure) {
+        // cout << "PaddingAndTransformColorSpace Time " << TEST_TIME_END(run1) << endl;
+        this->_dctAndQuantizationTime += TEST_TIME_END(dct);
+    }
 
+    TEST_TIME_START(encode);
     for(int i = 0; i < number_of_blocks; ++i) {
         lastYDC = encodeBlock(output, _bitBuffer, yBlock[i], lastYDC, _huffmanLuminanceDC, _huffmanLuminanceAC, codewords);
         lastCbDC = encodeBlock(output,_bitBuffer, cbBlock[i], lastCbDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords);
         lastCrDC = encodeBlock(output,_bitBuffer, crBlock[i], lastCrDC, _huffmanChrominanceDC, _huffmanChrominanceAC, codewords);
     }
-
+    if (this->_arguments.showMeasure) {
+        // cout << "PaddingAndTransformColorSpace Time " << TEST_TIME_END(run1) << endl;
+        this->_encodeTime += TEST_TIME_END(encode);
+    }
     writeBitCode(output, BitCode(0x7F, 7), _bitBuffer);
 
     output.push_back(0xFF);
