@@ -1,7 +1,7 @@
 import subprocess
 import os
 import re
-num = 50
+num = 20
 
 files = os.listdir("../test_set")
 print(files)
@@ -34,6 +34,23 @@ for quality in quality_list:
         os.makedirs(dir_path,exist_ok=True)
         raw_path = "../test_set/" + raw_name
         for i in range(0, num):
-            cmd = '/usr/bin/time ../mjpeg_encoder -i '+ raw_path + ' -s ' + resolution + ' -r ' + fps + ' -o ./test_' + raw_name.split(".raw")[0] + '.avi -k "opencl" -T "./tmp_jpegs_mp/" -t 1 -q ' + str(quality) + ' -d gpu 2>> ' + dir_path + '/time_t' + 'opencl' + '_q' + str(quality) + '_'  + '.out' 
+            cmd = '/usr/bin/time ../mjpeg_encoder -i '+ raw_path + ' -s ' + resolution + ' -r ' + fps + ' -o ./test_' + raw_name.split(".raw")[0] + '.avi -k "opencl" -T "./tmp_jpegs_mp/" -t 1 -q ' + str(quality) + ' -d gpu 2>> ' + dir_path + '/time_t' + 'opencl_gpu' + '_q' + str(quality) + '_'  + '.out' 
+            print(cmd)
+            subprocess.call(cmd, shell=True)
+
+    
+for quality in quality_list:
+    for raw_name in raw_list:
+        fps, resolution = parser_path(raw_name)
+        dir_path = "./result/"+raw_name.split(".raw")[0]
+
+        output_path = dir_path + '/time_t' + 'opencl' + '_q' + str(quality) + '_'  + '.out'
+        if os.path.exists(output_path):
+            os.remove(output_path)
+
+        os.makedirs(dir_path,exist_ok=True)
+        raw_path = "../test_set/" + raw_name
+        for i in range(0, num):
+            cmd = '/usr/bin/time ../mjpeg_encoder -i '+ raw_path + ' -s ' + resolution + ' -r ' + fps + ' -o ./test_' + raw_name.split(".raw")[0] + '.avi -k "opencl" -T "./tmp_jpegs_mp/" -t 1 -q ' + str(quality) + ' -d cpu 2>> ' + dir_path + '/time_t' + 'opencl_cpu' + '_q' + str(quality) + '_'  + '.out' 
             print(cmd)
             subprocess.call(cmd, shell=True)

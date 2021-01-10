@@ -1,7 +1,7 @@
 import subprocess
 import os
 import re
-num = 50
+num = 20
 
 files = os.listdir("../test_set")
 print(files)

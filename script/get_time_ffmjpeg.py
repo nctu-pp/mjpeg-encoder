@@ -4,8 +4,8 @@ import csv
 import re
 ll = [1,2,4,8,12,16,20,24]
 
-def get_data(two_lines, file_path):
-    line = two_lines[0]
+def get_data(lines, file_path):
+    line = lines
     user = line.split("user")[0]
     system = line.split("system")[0].split()[1]
     elapsed = line.split("elapsed")[0].split()[2].replace("0:","")
@@ -16,12 +16,12 @@ def get_data(two_lines, file_path):
     return float(user),float(system),float(elapsed)
 
 def get_data_from_lines(lines, file_path):
-    num = len(lines)/2
+    num = len(lines)
     user_list = []
     system_list = []
     elapsed_list = []
-    for i in range(0,len(lines),2):
-        user,system,elapsed = get_data(lines[i:i+2], file_path)
+    for i in range(0,len(lines)):
+        user,system,elapsed = get_data(lines[i], file_path)
         if(user == -1):
             print(file_path)
             #print(lines[0:3])
@@ -36,14 +36,21 @@ def get_data_from_lines(lines, file_path):
     np.sort(user_arr)
     np.sort(system_arr)
     np.sort(elapsed_arr)
-    start = int(num*0.1)
-    end = int(num*0.9)
+    start = int(num*0.2)
+    end = int(num*0.8)
     return np.mean(user_arr[start:end]),np.mean(system_arr[start:end]),np.mean(elapsed_arr[start:end]),num
 
 def delete_line(lines, s):
     lines_ = []
     for line in lines:
         if (line[0:2] != "No"):
+            lines_.append(line)
+    return lines_
+
+def is_contain_line(lines, s):
+    lines_ = []
+    for line in lines:
+        if ("user" in line):
             lines_.append(line)
     return lines_
 
@@ -54,22 +61,22 @@ for file_path in files:
     if(file_path.endswith(".raw")):
         raw_list.append(file_path)
 
-thread_list = [1,2,4,8,12,16,20,24,28,32,36,40,44,48,"serial","opencl_cpu","opencl_gpu"]
+thread_list = [1,2,4,8,12,16,20,24,28,32,36,40,44,48]
 quality_list = [20,40,60,80,100]
 
-with open('values.csv', 'w', newline='') as csvfile:
+with open('values_ff.csv', 'w', newline='') as csvfile:
     fieldnames = ['thread_number', 'quality', 'file_path', 'real', 'user', 'system', 'num']
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
     writer.writeheader()
     for raw_name in raw_list:
         for thread_num in thread_list:
-            for quality in quality_list:
-                dir_path = "./result/"+raw_name.split(".raw")[0]
-                s = os.path.join(dir_path, "time_t" +str(thread_num) + "_q" + str(quality) + "_.out")
-                f = open(s,'r')
-                lines = f.readlines()
-                lines2 = delete_line(lines, s)
-                user_avg,system_avg,elapsed_avg,num = get_data_from_lines(lines2, s)
+            dir_path = "./result/"+raw_name.split(".raw")[0]
+            s = os.path.join(dir_path, "time_tffmjpeg_" +str(thread_num) +".out")
+            f = open(s,'r')
+            lines = f.readlines()
+            lines2 = is_contain_line(lines, s)
+            print(lines2)
+            user_avg,system_avg,elapsed_avg,num = get_data_from_lines(lines2, s)
                 # print("file path is"+str(s))
                 # print("real: "+ str(elapsed_avg))
                 # print("user: "+ str(user_avg))
@@ -77,10 +84,10 @@ with open('values.csv', 'w', newline='') as csvfile:
                 # print(num)
                 # print("-----")
 
-                writer.writerow({'thread_number':thread_num, 'quality':quality,'file_path':s, 'real': elapsed_avg, 'user': user_avg, 'system':system_avg, 'num':num})
+            writer.writerow({'thread_number':thread_num, 'file_path':s, 'real': elapsed_avg, 'user': user_avg, 'system':system_avg, 'num':num})
 
 
-with open('values2.csv', 'w', newline='') as csvfile:
+with open('values2_ff.csv', 'w', newline='') as csvfile:
     fieldnames = ['thread_number', 'quality', 'file_path', 'real', 'user', 'system', 'num']
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
     writer.writeheader()
@@ -91,7 +98,7 @@ with open('values2.csv', 'w', newline='') as csvfile:
                 s = os.path.join(dir_path, "time_t" +str(thread_num) + "_q" + str(quality) + "_.out")
                 f = open(s,'r')
                 lines = f.readlines()
-                lines2 = delete_line(lines, s)
+                lines2 = is_contain_line(lines, s)
                 user_avg,system_avg,elapsed_avg,num = get_data_from_lines(lines2, s)
                 # print("file path is"+str(s))
                 # print("real: "+ str(elapsed_avg))
@@ -100,7 +107,7 @@ with open('values2.csv', 'w', newline='') as csvfile:
                 # print(num)
                 # print("-----")
 
-                writer.writerow({'thread_number':thread_num, 'quality':quality,'file_path':s, 'real': elapsed_avg, 'user': user_avg, 'system':system_avg, 'num':num})
+                writer.writerow({'thread_number':thread_num, 'file_path':s, 'real': elapsed_avg, 'user': user_avg, 'system':system_avg, 'num':num})
 
 # s = "time_serial.out"
 # f = open(s,'r')
