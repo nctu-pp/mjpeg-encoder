@@ -1,7 +1,7 @@
 import subprocess
 import os
 import re
-num = 20
+num = 10
 
 files = os.listdir("../test_set")
 print(files)
@@ -13,7 +13,8 @@ for file_path in files:
 
 def parser_path(path):
     print(path)
-    resolution = (re.search('-(.*)-',str(path)).group(1))
+    # resolution = (re.search('-(.*)-',str(path)).group(1))
+    resolution = (re.findall('-(\d*x\d*)-',str(path)))[0]
     fps = (re.search('-f(.*)\.',str(path)).group(1))
     return fps, resolution
 
@@ -21,36 +22,35 @@ thread_list = [1,2,4,8,12,16,20,24,28,32,36,40,44,48]
 quality_list = [20,40,60,80,100]
 thread_list.reverse()
 quality_list.reverse()
+quality = 100
 
-for quality in quality_list:
-    for raw_name in raw_list:
-        fps, resolution = parser_path(raw_name)
-        dir_path = "./result/"+raw_name.split(".raw")[0]
+for raw_name in raw_list:
+    fps, resolution = parser_path(raw_name)
+    dir_path = "./result/"+raw_name.split(".raw")[0]
 
-        output_path = dir_path + '/time_t' + 'opencl' + '_q' + str(quality) + '_'  + '.out'
-        if os.path.exists(output_path):
-            os.remove(output_path)
+    output_path = dir_path + '/time_t' + 'opencl' + '_q' + str(quality) + '_'  + '.out'
+    if os.path.exists(output_path):
+        os.remove(output_path)
 
-        os.makedirs(dir_path,exist_ok=True)
-        raw_path = "../test_set/" + raw_name
-        for i in range(0, num):
-            cmd = '/usr/bin/time ../mjpeg_encoder -i '+ raw_path + ' -s ' + resolution + ' -r ' + fps + ' -o ./test_' + raw_name.split(".raw")[0] + '.avi -k "opencl" -T "./tmp_jpegs_mp/" -t 1 -q ' + str(quality) + ' -d gpu 2>> ' + dir_path + '/time_t' + 'opencl_gpu' + '_q' + str(quality) + '_'  + '.out' 
-            print(cmd)
-            subprocess.call(cmd, shell=True)
+    os.makedirs(dir_path,exist_ok=True)
+    raw_path = "../test_set/" + raw_name
+    for i in range(0, num):
+        cmd = '/usr/bin/time ../mjpeg_encoder -m -i '+ raw_path + ' -s ' + resolution + ' -r ' + fps + ' -o ./test_' + raw_name.split(".raw")[0] + '.avi -k "opencl" -T "./tmp_jpegs_mp/" -t 1 -q ' + str(quality) + ' -d gpu >> ' + dir_path + '/time_t' + 'opencl_gpu' + '_q' + str(quality) + '_'  + '.out' 
+        print(cmd)
+        subprocess.call(cmd, shell=True)
 
-    
-for quality in quality_list:
-    for raw_name in raw_list:
-        fps, resolution = parser_path(raw_name)
-        dir_path = "./result/"+raw_name.split(".raw")[0]
 
-        output_path = dir_path + '/time_t' + 'opencl' + '_q' + str(quality) + '_'  + '.out'
-        if os.path.exists(output_path):
-            os.remove(output_path)
+for raw_name in raw_list:
+    fps, resolution = parser_path(raw_name)
+    dir_path = "./result/"+raw_name.split(".raw")[0]
 
-        os.makedirs(dir_path,exist_ok=True)
-        raw_path = "../test_set/" + raw_name
-        for i in range(0, num):
-            cmd = '/usr/bin/time ../mjpeg_encoder -i '+ raw_path + ' -s ' + resolution + ' -r ' + fps + ' -o ./test_' + raw_name.split(".raw")[0] + '.avi -k "opencl" -T "./tmp_jpegs_mp/" -t 1 -q ' + str(quality) + ' -d cpu 2>> ' + dir_path + '/time_t' + 'opencl_cpu' + '_q' + str(quality) + '_'  + '.out' 
-            print(cmd)
-            subprocess.call(cmd, shell=True)
+    output_path = dir_path + '/time_t' + 'opencl' + '_q' + str(quality) + '_'  + '.out'
+    if os.path.exists(output_path):
+        os.remove(output_path)
+
+    os.makedirs(dir_path,exist_ok=True)
+    raw_path = "../test_set/" + raw_name
+    for i in range(0, num):
+        cmd = '/usr/bin/time ../mjpeg_encoder -m -i '+ raw_path + ' -s ' + resolution + ' -r ' + fps + ' -o ./test_' + raw_name.split(".raw")[0] + '.avi -k "opencl" -T "./tmp_jpegs_mp/" -t 1 -q ' + str(quality) + ' -d cpu >> ' + dir_path + '/time_t' + 'opencl_cpu' + '_q' + str(quality) + '_'  + '.out' 
+        print(cmd)
+        subprocess.call(cmd, shell=True)
